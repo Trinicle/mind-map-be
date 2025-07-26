@@ -1,17 +1,8 @@
-from openai import OpenAI
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from src.flask.main import main as flask_main
 
 
 def main():
-    response = client.responses.create(
-        model="gpt-4.1", input="Write a one-sentence bedtime story about a unicorn."
-    )
-
-    print(response.output_text)
+    flask_main()
 
 
 if __name__ == "__main__":
