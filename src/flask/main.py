@@ -1,26 +1,30 @@
 from flask import Flask, request, jsonify, make_response
-from src.flask.supabase.auth import UserModel, signin, signout, signup
+from gotrue import Session
+from src.flask.supabase.auth import UserModel, get_session, signin, signout, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
-
-
-@app.after_request
-def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:4200")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
-    response.headers.add("Access-Control-Allow-Credentials", "true")
-    return response
+CORS(
+    app,
+    supports_credentials=True,
+    origins=["http://localhost:4200"],
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "PUT", "POST", "DELETE", "OPTIONS"],
+)
 
 
 def serialize_auth_response(response: AuthResponse):
     return {
         "user": response.user.model_dump(mode="json"),
         "session": response.session.model_dump(mode="json"),
+    }
+
+
+def serialize_session(session: Session):
+    return {
+        "session": session.model_dump(mode="json"),
     }
 
 
@@ -74,6 +78,22 @@ def handle_signout():
     try:
         signout()
         return jsonify({"message": "Logged out"}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/auth/session", methods=["GET"])
+def handle_session():
+    try:
+        session = get_session()
+        if not session:
+            return (
+                jsonify({"message": "No active session", "data": {"session": None}}),
+                401,
+            )
+        serialized_response = serialize_session(session)
+        return jsonify({"message": "Session found", "data": serialized_response}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500

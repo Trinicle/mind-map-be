@@ -37,3 +37,7 @@ def signin(email: str, password: str) -> AuthResponse:
 
 def signout():
     return supabase.auth.sign_out()
+
+
+def get_session():
+    return supabase.auth.get_session()
