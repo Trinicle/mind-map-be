@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify, make_response
-from src.supabase.supabase import UserModel
-from src.supabase.supabase import signup
+from src.flask.supabase.auth import UserModel, login, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
+from gotrue.types import AuthResponse
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -17,6 +17,13 @@ def after_request(response):
     return response
 
 
+def serialize_auth_response(response: AuthResponse):
+    return {
+        "user": response.user.model_dump(mode="json"),
+        "session": response.session.model_dump(mode="json"),
+    }
+
+
 @app.route("/auth/signup", methods=["POST"])
 def handle_signup():
     try:
@@ -26,11 +33,39 @@ def handle_signup():
         if not email or not password:
             return jsonify({"message": "Email and password are required"}), 400
 
-        signup(data)
-        return jsonify({"message": "Authenticated"}), 200
+        response = signup(data)
+        serialized_response = serialize_auth_response(response)
+        return jsonify({"message": "Authenticated", "data": serialized_response}), 200
     except AuthApiError as e:
-        return jsonify({"message": str(e)}), 400
+        exception = e.to_dict()
+        return (
+            jsonify({"message": exception["message"], "code": exception["code"]}),
+            exception["status"],
+        )
     except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/auth/login", methods=["POST"])
+def handle_login():
+    try:
+        data: UserModel = request.json
+        email = data.get("email")
+        password = data.get("password")
+        if not email or not password:
+            return jsonify({"message": "Email and password are required"}), 400
+        response = login(email, password)
+        serialized_response = serialize_auth_response(response)
+        return jsonify({"message": "Authenticated", "data": serialized_response}), 200
+    except AuthApiError as e:
+        exception = e.to_dict()
+        return (
+            jsonify({"message": exception["message"], "code": exception["code"]}),
+            exception["status"],
+        )
+    except Exception as e:
+        print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
