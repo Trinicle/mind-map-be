@@ -31,5 +31,9 @@ def signup(user: UserModel) -> AuthResponse:
     )
 
 
-def login(email: str, password: str) -> AuthResponse:
+def signin(email: str, password: str) -> AuthResponse:
     return supabase.auth.sign_in_with_password({"email": email, "password": password})
+
+
+def signout():
+    return supabase.auth.sign_out()

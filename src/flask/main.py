@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, make_response
-from src.flask.supabase.auth import UserModel, login, signup
+from src.flask.supabase.auth import UserModel, signin, signout, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
@@ -47,15 +47,15 @@ def handle_signup():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
-@app.route("/auth/login", methods=["POST"])
-def handle_login():
+@app.route("/auth/signin", methods=["POST"])
+def handle_signin():
     try:
         data: UserModel = request.json
         email = data.get("email")
         password = data.get("password")
         if not email or not password:
             return jsonify({"message": "Email and password are required"}), 400
-        response = login(email, password)
+        response = signin(email, password)
         serialized_response = serialize_auth_response(response)
         return jsonify({"message": "Authenticated", "data": serialized_response}), 200
     except AuthApiError as e:
@@ -64,6 +64,16 @@ def handle_login():
             jsonify({"message": exception["message"], "code": exception["code"]}),
             exception["status"],
         )
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/auth/signout", methods=["POST"])
+def handle_signout():
+    try:
+        signout()
+        return jsonify({"message": "Logged out"}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
