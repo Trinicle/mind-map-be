@@ -9,6 +9,16 @@ class ContentAgentOutput(TypedDict):
     date: datetime
 
 
+class ContentDetail(TypedDict):
+    id: str
+    topic_id: str
+    user_id: str
+    text: str
+    date: datetime
+    created_at: datetime
+    updated_at: datetime
+
+
 class TopicAgentOutput(TypedDict):
     title: str
     content: List[ContentAgentOutput]

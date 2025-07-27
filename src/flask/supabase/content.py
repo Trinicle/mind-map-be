@@ -1,9 +1,9 @@
 from datetime import datetime
-from src.models import Content
+from src.models import ContentDetail
 from .client import supabase
 
 
-def insert_content(text: str, date: datetime, topic_id: str) -> Content | None:
+def insert_content(text: str, date: datetime, topic_id: str) -> ContentDetail | None:
     """
     Insert a new content for the current user.
     """

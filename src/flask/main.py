@@ -14,7 +14,7 @@ from src.flask.supabase.mindmap import (
     insert_mindmap,
 )
 from src.flask.supabase.topic import insert_topic
-from src.models import MindMapPostRequest, MindMapRequest
+from src.models import MindMapPostRequest
 
 UPLOAD_FOLDER = "uploads"
 
