@@ -26,15 +26,7 @@ class MindMapAgentOutput(TypedDict):
     connections: List[ConnectionAgentOutput]
 
 
-class MindMap(TypedDict):
-    id: str
-    title: str
-    description: str
-    date: datetime
-    tags: List[str]
-
-
-class MindMapDetail(TypedDict):
+class MindMapDetailResponse(TypedDict):
     id: str
     user_id: str
     title: str
@@ -45,7 +37,7 @@ class MindMapDetail(TypedDict):
     date: datetime
 
 
-class MindMapRequest(TypedDict):
+class MindMapPostRequest(TypedDict):
     title: str
     description: str
     date: datetime
@@ -55,12 +47,10 @@ class MindMapRequest(TypedDict):
 
 class MindMapResponse(TypedDict):
     id: str
-    user_id: str
     title: str
     description: str
     date: datetime
     tags: List[str]
-    created_at: datetime
 
 
 class Topic(TypedDict):

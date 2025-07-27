@@ -1,9 +1,8 @@
-from typing import List, Optional, TypedDict
+from typing import List
 from datetime import datetime
 
-from src.models import MindMap, MindMapDetail
+from src.models import MindMapDetailResponse, MindMapResponse
 from .client import supabase
-from .auth import get_user
 
 
 def insert_mindmap(
@@ -11,7 +10,8 @@ def insert_mindmap(
     description: str,
     date: str,
     tags: List[str] = [],
-) -> MindMap:
+    participants: List[str] = [],
+) -> MindMapDetailResponse:
     """
     Insert a new mindmap for the current user.
     """
@@ -23,6 +23,7 @@ def insert_mindmap(
         "description": description,
         "tags": tags,
         "date": parsed_date.isoformat(),  # Convert back to ISO format for Postgres
+        "participants": participants,
     }
 
     # We don't need to explicitly set user_id as it's handled by RLS
@@ -31,7 +32,7 @@ def insert_mindmap(
     return result.data[0] if result.data else None
 
 
-def get_user_mindmaps() -> List[MindMap]:
+def get_user_mindmaps() -> List[MindMapResponse]:
     """
     Get all mindmaps for the current user.
     """
@@ -41,7 +42,7 @@ def get_user_mindmaps() -> List[MindMap]:
     return result.data if result.data else []
 
 
-def get_mindmap_detail(mindmap_id: str) -> MindMapDetail | None:
+def get_mindmap_detail(mindmap_id: str) -> MindMapDetailResponse | None:
     """
     Get a specific mindmap by ID.
     """

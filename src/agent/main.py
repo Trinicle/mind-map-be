@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from src.agent.utils.tools import tools
 from src.agent.utils.prompts import get_transcript_prompt
-from src.models import MindMapRequest, MindMapAgentOutput, Topic
+from src.models import MindMapPostRequest, MindMapAgentOutput, Topic
 
 load_dotenv()
 
@@ -29,7 +29,7 @@ agent = create_openai_functions_agent(llm, tools, agent_prompt)
 agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
 
 
-def create_mindmap(mindmap: MindMapRequest) -> MindMapAgentOutput | None:
+def create_mindmap(mindmap: MindMapPostRequest) -> MindMapAgentOutput | None:
     prompt = get_transcript_prompt(mindmap["file_path"])
     response = agent_executor.invoke({"input": prompt})
 
@@ -47,7 +47,7 @@ def create_topic_suggestive_questions(topic: Topic):
 
 
 if __name__ == "__main__":
-    mindmap: MindMapRequest = {
+    mindmap: MindMapPostRequest = {
         "title": "Test Mindmap",
         "description": "Test Description",
         "date": datetime.now(),

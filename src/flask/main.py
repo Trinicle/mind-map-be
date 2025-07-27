@@ -14,7 +14,7 @@ from src.flask.supabase.mindmap import (
     insert_mindmap,
 )
 from src.flask.supabase.topic import insert_topic
-from src.models import MindMapRequest
+from src.models import MindMapPostRequest, MindMapRequest
 
 UPLOAD_FOLDER = "uploads"
 
@@ -135,7 +135,7 @@ def handle_mindmap_detail(mindmap_id: str):
 @app.route("/dashboard/mindmap", methods=["POST"])
 def handle_mindmap_create():
     try:
-        data = request.json
+        data: MindMapPostRequest = request.json
         file = request.files.get("file")
         if not file:
             return jsonify({"message": "File is required"}), 400
@@ -154,7 +154,15 @@ def handle_mindmap_create():
         if mindmap_agent_output is None:
             return jsonify({"message": "Failed to create mindmap"}), 400
 
-        mindmap = insert_mindmap(data.title, data.description, data.date, data.tags)
+        os.remove(file_path)
+
+        mindmap = insert_mindmap(
+            data.title,
+            data.description,
+            data.date,
+            data.tags,
+            mindmap_agent_output["participants"],
+        )
 
         for output_topic in mindmap_agent_output["topics"]:
             topic = insert_topic(output_topic["title"], mindmap["id"])
