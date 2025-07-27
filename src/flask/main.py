@@ -1,9 +1,16 @@
-from flask import Flask, request, jsonify, make_response
+import os
+from flask import Flask, request, jsonify
 from gotrue import Session
+from src.agent.main import create_mindmap
 from src.flask.supabase.auth import UserModel, get_session, signin, signout, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
+
+from src.flask.supabase.mindmap import get_user_mindmaps, insert_mindmap
+from src.models import MindMap
+
+UPLOAD_FOLDER = "uploads"
 
 app = Flask(__name__)
 CORS(
@@ -94,6 +101,44 @@ def handle_session():
             )
         serialized_response = serialize_session(session)
         return jsonify({"message": "Session found", "data": serialized_response}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/dashboard/mindmap", methods=["GET"])
+def handle_mindmap_get():
+    try:
+        cards = get_user_mindmaps()
+        return jsonify({"message": "Mindmap cards found", "data": cards}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/dashboard/mindmap", methods=["POST"])
+def handle_mindmap_create():
+    try:
+        data = request.json
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"message": "File is required"}), 400
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(file_path)
+
+        mindmap = MindMap(
+            title=data.get("title"),
+            description=data.get("description"),
+            date=data.get("date"),
+            tags=data.get("tags"),
+            file_path=file_path,
+        )
+
+        is_success = create_mindmap(mindmap)
+
+        if is_success:
+            insert_mindmap(data.title, data.description, data.date, data.tags)
+        return jsonify({"message": "Mindmap created", "data": data}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500

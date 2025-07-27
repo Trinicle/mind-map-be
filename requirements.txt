@@ -1,5 +1,8 @@
 openai
 flask
 langchain
+langchain_core
+langchain_openai
 supabase
 flask-cors
+unstructured

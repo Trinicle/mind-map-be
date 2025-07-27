@@ -1,11 +1,6 @@
 from typing import TypedDict, NotRequired
-from supabase import create_client, Client
-import os
-from dotenv import load_dotenv
 from gotrue.types import AuthResponse
-
-load_dotenv()
-supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+from .client import supabase
 
 
 class UserModel(TypedDict):
@@ -41,3 +36,9 @@ def signout():
 
 def get_session():
     return supabase.auth.get_session()
+
+
+def get_user():
+    """Get the current authenticated user"""
+    session = get_session()
+    return session.user if session else None
