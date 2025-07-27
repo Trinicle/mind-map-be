@@ -8,10 +8,11 @@ parse_transcript_prompt = PromptTemplate.from_template(
     First, extract the text from the document at this path: {file_path}
 
     Then, analyze the extracted text with these goals:
-    1. Break the transcript into distinct topics.
-    2. Assign each segment of conversation to exactly one topic.
-    3. Generate a short, descriptive title (maximum 4 words) for each topic.
-    4. Identify and describe connections between related topics.
+    1. Clear out any noise from the transcript, make it more readable by correcting grammar and punctuation, and removing any non-essential information.
+    2. Break the transcript into distinct topics.
+    3. Assign each segment of conversation to exactly one topic, only use information from the transcript to assign the conversation to a topic.
+    4. Generate a short, descriptive title (maximum 4 words) for each topic.
+    5. Identify and describe connections between related topics.
 
     Requirements:
     - A topic must represent a single idea or theme.
@@ -21,26 +22,28 @@ parse_transcript_prompt = PromptTemplate.from_template(
     - Multiple conversations may belong to the same topic.
     - Topics can be connected if they are contextually or logically related, but still distinct.
 
-    Format your response as structured JSON like this:
+    RESPONSE FORMAT INSTRUCTIONS:
 
+    When responding, use the following format
+    
     {{
-      "topics": [
-        {{
-          "title": "Client Onboarding",
-          "content": "[Text of all conversation parts that belong to this topic.]"
-        }},
-        {{
-          "title": "Client Feedback",
-          "content": "[Text of conversation related to client feedback.]"
-        }}
-      ],
-      "connections": [
-        {{
-          "from": "Client Onboarding",
-          "to": "Client Feedback",
-          "reason": "Client feedback discusses issues with the onboarding process."
-        }}
-      ]
+        "participants": string[], // A list of the names of the participants that had an impact on the transcript
+        "topics": [
+            {{
+                "title": string, // The title of the topic
+                "content": {{
+                    "text": string, // The text of the content
+                    "date": string // The timestamp of the content
+                }}, // A list of direct quotes from the transcript supporting the topic
+            }},
+        ],
+        "connections": [
+            {{
+                "from_topic": string, // The title of the topic that is connected to the current topic
+                "to_topic": string, // The title of the topic that is connected from the current topic
+                "reason": string, // A short description of why the two topics are connected
+            }}
+        ]
     }}
     """
 )

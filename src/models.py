@@ -2,10 +2,50 @@ from datetime import datetime
 from enum import Enum
 from typing import List
 from gotrue import TypedDict
-from werkzeug.datastructures import FileStorage
+
+
+class ContentAgentOutput(TypedDict):
+    text: str
+    date: datetime
+
+
+class TopicAgentOutput(TypedDict):
+    title: str
+    content: List[ContentAgentOutput]
+
+
+class ConnectionAgentOutput(TypedDict):
+    from_topic: str
+    to_topic: str
+    reason: str
+
+
+class MindMapAgentOutput(TypedDict):
+    participants: List[str]
+    topics: List[TopicAgentOutput]
+    connections: List[ConnectionAgentOutput]
 
 
 class MindMap(TypedDict):
+    id: str
+    title: str
+    description: str
+    date: datetime
+    tags: List[str]
+
+
+class MindMapDetail(TypedDict):
+    id: str
+    user_id: str
+    title: str
+    tags: List[str]
+    participants: List[str]
+    description: str
+    created_at: datetime
+    date: datetime
+
+
+class MindMapRequest(TypedDict):
     title: str
     description: str
     date: datetime

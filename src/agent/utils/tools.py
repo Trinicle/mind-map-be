@@ -17,7 +17,8 @@ def docx_file_to_text(file_path: str) -> str:
         if doc.page_content.strip():
             full_text.append(doc.page_content)
 
-    return "\n".join(full_text)
+    text = "\n".join(full_text)
+    return text
 
 
 tools = [docx_file_to_text]
