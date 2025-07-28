@@ -9,7 +9,7 @@ def insert_content(text: str, date: datetime, topic_id: str) -> ContentDetail | 
     """
     data = {
         "text": text,
-        "date": date,
+        "date": date.isoformat(),
         "topic_id": topic_id,
     }
 

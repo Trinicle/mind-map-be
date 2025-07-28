@@ -14,7 +14,9 @@ from src.flask.supabase.mindmap import (
     insert_mindmap,
 )
 from src.flask.supabase.topic import insert_topic
-from src.models import MindMapPostRequest
+from src.models import MindMapPostRequest, MindMapResponse
+import json
+from datetime import datetime
 
 UPLOAD_FOLDER = "uploads"
 
@@ -135,18 +137,23 @@ def handle_mindmap_detail(mindmap_id: str):
 @app.route("/dashboard/mindmap", methods=["POST"])
 def handle_mindmap_create():
     try:
-        data: MindMapPostRequest = request.json
         file = request.files.get("file")
         if not file:
             return jsonify({"message": "File is required"}), 400
+
+        title = request.form.get("title")
+        description = request.form.get("description")
+        date = request.form.get("date")
+        tags = json.loads(request.form.get("tags", "[]"))
+
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(file_path)
 
-        mindmap_request: MindMapRequest = {
-            "title": data.get("title"),
-            "description": data.get("description"),
-            "date": data.get("date"),
-            "tags": data.get("tags"),
+        mindmap_request: MindMapPostRequest = {
+            "title": title,
+            "description": description,
+            "date": date,
+            "tags": tags,
             "file_path": file_path,
         }
 
@@ -157,25 +164,36 @@ def handle_mindmap_create():
         os.remove(file_path)
 
         mindmap = insert_mindmap(
-            data.title,
-            data.description,
-            data.date,
-            data.tags,
+            title,
+            description,
+            date,
+            tags,
             mindmap_agent_output["participants"],
         )
+        print("inserted mindmap")
 
         for output_topic in mindmap_agent_output["topics"]:
             topic = insert_topic(output_topic["title"], mindmap["id"])
-
+            print("inserted topic")
             if topic is None:
                 continue
 
             for content in output_topic["content"]:
                 if content is None:
                     continue
-                insert_content(content["text"], content["date"], topic["id"])
+                content_date = datetime.strptime(content["date"], "%B %d, %Y, %I:%M%p")
+                insert_content(content["text"], content_date, topic["id"])
+                print("inserted content")
 
-        return jsonify({"message": "Mindmap created", "data": data}), 200
+        response: MindMapResponse = {
+            "id": mindmap["id"],
+            "title": mindmap["title"],
+            "description": mindmap["description"],
+            "date": mindmap["date"],
+            "tags": mindmap["tags"],
+        }
+
+        return jsonify({"message": "Mindmap created", "data": response}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
