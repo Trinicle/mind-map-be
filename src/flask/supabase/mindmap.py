@@ -42,6 +42,33 @@ def get_user_mindmaps() -> List[MindMapResponse]:
     return result.data if result.data else []
 
 
+def get_user_mindmaps_by_query(
+    title: str, tags: List[str], date: str
+) -> List[MindMapResponse]:
+    """
+    Get all mindmaps for the current user by query.
+    """
+    select = supabase.table("MindMap").select("id, title, description, tags, date")
+
+    if title:
+        select = select.eq("title", title)
+    if tags:
+        select = select.contains("tags", tags)
+    if date:
+        select = select.eq("date", date)
+
+    result = select.execute()
+    return result.data if result.data else []
+
+
+def get_tags() -> List[str]:
+    """
+    Get all tags for the current user.
+    """
+    result = supabase.table("MindMap").select("tags").execute()
+    return list(set(result.data[0]["tags"])) if result.data else []
+
+
 def get_mindmap_detail(mindmap_id: str) -> MindMapDetailResponse | None:
     """
     Get a specific mindmap by ID.

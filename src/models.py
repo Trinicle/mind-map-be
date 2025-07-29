@@ -6,7 +6,6 @@ from gotrue import TypedDict
 
 class ContentAgentOutput(TypedDict):
     text: str
-    date: datetime
 
 
 class ContentDetail(TypedDict):

@@ -10,7 +10,9 @@ from gotrue.types import AuthResponse
 from src.flask.supabase.content import insert_content
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
+    get_tags,
     get_user_mindmaps,
+    get_user_mindmaps_by_query,
     insert_mindmap,
 )
 from src.flask.supabase.topic import insert_topic
@@ -124,11 +126,35 @@ def handle_mindmap_get():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
+@app.route("/dashboard/mindmap/search", methods=["GET"])
+def handle_mindmap_search():
+    try:
+        request_tags = request.args.get("tags")
+        request_title = request.args.get("title")
+        request_date = request.args.get("date")
+        date = datetime.fromisoformat(request_date.replace("Z", "+00:00"))
+        cards = get_user_mindmaps_by_query(request_title, request_tags, date)
+        return jsonify({"message": "Mindmap cards found", "data": cards}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
 @app.route("/dashboard/mindmap/<mindmap_id>", methods=["GET"])
 def handle_mindmap_detail(mindmap_id: str):
     try:
         mindmap = get_mindmap_detail(mindmap_id)
         return jsonify({"message": "Mindmap detail found", "data": mindmap}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/dashboard/mindmap/tags", methods=["GET"])
+def handle_mindmap_tags():
+    try:
+        tags = get_tags()
+        return jsonify({"message": "Mindmap tags found", "data": tags}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -181,8 +207,7 @@ def handle_mindmap_create():
             for content in output_topic["content"]:
                 if content is None:
                     continue
-                content_date = datetime.strptime(content["date"], "%B %d, %Y, %I:%M%p")
-                insert_content(content["text"], content_date, topic["id"])
+                insert_content(content["text"], topic["id"])
                 print("inserted content")
 
         response: MindMapResponse = {

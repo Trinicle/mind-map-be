@@ -3,13 +3,12 @@ from src.models import ContentDetail
 from .client import supabase
 
 
-def insert_content(text: str, date: datetime, topic_id: str) -> ContentDetail | None:
+def insert_content(text: str, topic_id: str) -> ContentDetail | None:
     """
     Insert a new content for the current user.
     """
     data = {
         "text": text,
-        "date": date.isoformat(),
         "topic_id": topic_id,
     }
 

@@ -33,8 +33,7 @@ parse_transcript_prompt = PromptTemplate.from_template(
                 "title": string, // The title of the topic
                 "content": [
                   {{
-                    "text": string, // The text of the content
-                    "date": string // The timestamp of the content
+                    "text": string // The text of the content
                   }},
                   // A list of direct quotes from the transcript supporting the topic
                 ]
