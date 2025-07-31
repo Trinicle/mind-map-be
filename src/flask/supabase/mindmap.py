@@ -11,7 +11,6 @@ def insert_mindmap(
     title: str,
     description: str,
     date: str,
-    tags: List[str] = [],
     participants: List[str] = [],
 ) -> MindMap:
     """
@@ -25,7 +24,6 @@ def insert_mindmap(
     data = {
         "title": title,
         "description": description,
-        "tags": tags,
         "date": parsed_date.isoformat(),  # Convert back to ISO format for Postgres
         "participants": participants,
     }
@@ -41,9 +39,8 @@ def get_user_mindmaps(request: Request) -> List[MindMapResponse]:
     Get all mindmaps for the current user.
     """
     client = get_client(request)
-    result = (
-        client.table("MindMap").select("id, title, description, tags, date").execute()
-    )
+    result = client.rpc("get_mindmaps_with_tags").execute()
+
     return result.data if result.data else []
 
 
@@ -72,8 +69,12 @@ def get_tags(request: Request) -> List[str]:
     Get all tags for the current user.
     """
     client = get_client(request)
-    result = client.table("MindMap").select("tags").execute()
-    return list(set(result.data[0]["tags"])) if result.data else []
+
+    request_name = request.args.get("name")
+    result = (
+        client.table("Tags").select("name").like("name", f"%{request_name}%").execute()
+    )
+    return result.data if result.data else []
 
 
 def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap | None:

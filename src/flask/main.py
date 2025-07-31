@@ -16,6 +16,7 @@ from src.flask.supabase.mindmap import (
     get_user_mindmaps_by_query,
     insert_mindmap,
 )
+from src.flask.supabase.tags import insert_tags
 from src.flask.supabase.topic import insert_topic
 import json
 from datetime import datetime
@@ -100,22 +101,6 @@ def handle_signout():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
-# @app.route("/auth/session", methods=["GET"])
-# def handle_session():
-#     try:
-#         session = get_session()
-#         if not session:
-#             return (
-#                 jsonify({"message": "No active session", "data": {"session": None}}),
-#                 401,
-#             )
-#         serialized_response = serialize_session(session)
-#         return jsonify({"message": "Session found", "data": serialized_response}), 200
-#     except Exception as e:
-#         print(e)
-#         return jsonify({"message": "An unexpected error occurred"}), 500
-
-
 @app.route("/dashboard/mindmap", methods=["GET"])
 def handle_mindmap_get():
     try:
@@ -183,7 +168,6 @@ def handle_mindmap_create():
             "title": title,
             "description": description,
             "date": date,
-            "tags": tags,
             "file_path": file_path,
         }
 
@@ -198,10 +182,11 @@ def handle_mindmap_create():
             title,
             description,
             date,
-            tags,
             mindmap_agent_output["participants"],
         )
         print("inserted mindmap")
+
+        tags = insert_tags(request, tags)
 
         for output_topic in mindmap_agent_output["topics"]:
             topic = insert_topic(request, output_topic["title"], mindmap["id"])
@@ -220,7 +205,7 @@ def handle_mindmap_create():
             "title": mindmap["title"],
             "description": mindmap["description"],
             "date": mindmap["date"],
-            "tags": mindmap["tags"],
+            "tags": tags,
         }
 
         return jsonify({"message": "Mindmap created", "data": response}), 200

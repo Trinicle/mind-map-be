@@ -8,7 +8,6 @@ class MindMap(TypedDict):
     id: str
     user_id: str
     title: str
-    tags: List[str]
     participants: List[str]
     description: str
     created_at: datetime

@@ -3,6 +3,8 @@ flask
 langchain
 langchain_core
 langchain_openai
+langchain_community
 supabase
 flask-cors
 unstructured
+dotenv
