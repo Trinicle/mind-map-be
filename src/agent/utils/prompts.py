@@ -7,12 +7,13 @@ parse_transcript_prompt = PromptTemplate.from_template(
 
     First, extract the text from the document at this path: {file_path}
 
-    Then, analyze the extracted text with these goals:
+    Then, analyze the text with these goals:
     1. Clear out any noise from the transcript, make it more readable by correcting grammar and punctuation, and removing any non-essential information.
-    2. Break the transcript into distinct topics.
-    3. Assign each segment of conversation to exactly one topic, only use information from the transcript to assign the conversation to a topic.
-    4. Generate a short, descriptive title (maximum 4 words) for each topic.
-    5. Identify and describe connections between related topics.
+    2. Insert the transcript into the database.
+    3. Break the transcript into distinct topics.
+    4. Assign each segment of conversation to exactly one topic, only use information from the transcript to assign the conversation to a topic.
+    5. Generate a short, descriptive title (maximum 4 words) for each topic.
+    6. Identify and describe connections between related topics.
 
     Requirements:
     - A topic must represent a single idea or theme.
@@ -27,6 +28,7 @@ parse_transcript_prompt = PromptTemplate.from_template(
     When responding, use the following format
     
     {{
+        "transcript_id": string, // The id of the transcript that was inserted into the database
         "participants": string[], // A list of the names of the participants that had an impact on the transcript
         "topics": [
             {{

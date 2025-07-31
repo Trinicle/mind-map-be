@@ -1,9 +1,9 @@
 from datetime import datetime
-from src.models import ContentDetail
+from src.flask.models.content_models import Content
 from .client import supabase
 
 
-def insert_content(text: str, topic_id: str) -> ContentDetail | None:
+def insert_content(text: str, topic_id: str) -> Content | None:
     """
     Insert a new content for the current user.
     """

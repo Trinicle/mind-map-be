@@ -1,7 +1,8 @@
 from typing import List
 from datetime import datetime
 
-from src.models import MindMapDetailResponse, MindMapResponse
+from src.flask.models.mindmap_models import MindMap, MindMapResponse
+
 from .client import supabase
 
 
@@ -11,7 +12,7 @@ def insert_mindmap(
     date: str,
     tags: List[str] = [],
     participants: List[str] = [],
-) -> MindMapDetailResponse:
+) -> MindMap:
     """
     Insert a new mindmap for the current user.
     """
@@ -69,7 +70,7 @@ def get_tags() -> List[str]:
     return list(set(result.data[0]["tags"])) if result.data else []
 
 
-def get_mindmap_detail(mindmap_id: str) -> MindMapDetailResponse | None:
+def get_mindmap_detail(mindmap_id: str) -> MindMap | None:
     """
     Get a specific mindmap by ID.
     """

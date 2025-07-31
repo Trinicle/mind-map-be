@@ -1,4 +1,4 @@
-from src.models import Topic
+from src.flask.models.topic_models import Topic
 from .client import supabase
 
 

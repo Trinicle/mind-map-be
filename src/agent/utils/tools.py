@@ -3,6 +3,7 @@ from langchain_community.document_loaders import (
     TextLoader,
     UnstructuredWordDocumentLoader,
 )
+from src.flask.supabase.transcript import insert_transcript
 
 
 @tool(parse_docstring=True)
@@ -29,4 +30,15 @@ def default_file_to_text(file_path: str) -> str:
     return "\n".join([doc.page_content for doc in documents])
 
 
-tools = [docx_file_to_text]
+@tool(parse_docstring=True)
+def insert_transcript_into_database(transcript: str) -> str | None:
+    """Insert a transcript into the database.
+
+    Args:
+        transcript: The transcript to insert.
+    """
+    result = insert_transcript(transcript)
+    return result["id"] if result else None
+
+
+tools = [docx_file_to_text, default_file_to_text, insert_transcript_into_database]

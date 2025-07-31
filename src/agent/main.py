@@ -5,9 +5,11 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from src.agent.utils.tools import tools
 from src.agent.utils.prompts import get_transcript_prompt
-from src.models import MindMapPostRequest, MindMapAgentOutput, Topic
+from src.agent.utils.tools import tools
+from src.flask.models.mindmap_models import MindMapAgentOutput, MindMapPostRequest
+from src.flask.models.topic_models import Topic
+
 
 load_dotenv()
 

@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, jsonify
 from gotrue import Session
 from src.agent.main import create_mindmap
+from src.flask.models.mindmap_models import MindMapPostRequest, MindMapResponse
 from src.flask.supabase.auth import UserModel, get_session, signin, signout, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
@@ -16,7 +17,6 @@ from src.flask.supabase.mindmap import (
     insert_mindmap,
 )
 from src.flask.supabase.topic import insert_topic
-from src.models import MindMapPostRequest, MindMapResponse
 import json
 from datetime import datetime
 
