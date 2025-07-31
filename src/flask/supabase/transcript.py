@@ -1,8 +1,9 @@
+from flask import Request
 from src.flask.models.transcript_models import Transcript
-from .client import supabase
+from .client import get_client
 
 
-def insert_transcript(text: str) -> Transcript:
+def insert_transcript(request: Request, text: str) -> Transcript:
     """
     Insert a new content for the current user.
     """
@@ -10,5 +11,6 @@ def insert_transcript(text: str) -> Transcript:
         "text": text,
     }
 
-    result = supabase.table("Transcript").insert(data).execute()
+    client = get_client(request)
+    result = client.table("Transcript").insert(data).execute()
     return result.data[0] if result.data else None

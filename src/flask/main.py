@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, Request, request, jsonify
 from gotrue import Session
 from src.agent.main import create_mindmap
 from src.flask.models.mindmap_models import MindMapPostRequest, MindMapResponse
@@ -93,33 +93,33 @@ def handle_signin():
 @app.route("/auth/signout", methods=["POST"])
 def handle_signout():
     try:
-        signout()
+        signout(request)
         return jsonify({"message": "Logged out"}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
-@app.route("/auth/session", methods=["GET"])
-def handle_session():
-    try:
-        session = get_session()
-        if not session:
-            return (
-                jsonify({"message": "No active session", "data": {"session": None}}),
-                401,
-            )
-        serialized_response = serialize_session(session)
-        return jsonify({"message": "Session found", "data": serialized_response}), 200
-    except Exception as e:
-        print(e)
-        return jsonify({"message": "An unexpected error occurred"}), 500
+# @app.route("/auth/session", methods=["GET"])
+# def handle_session():
+#     try:
+#         session = get_session()
+#         if not session:
+#             return (
+#                 jsonify({"message": "No active session", "data": {"session": None}}),
+#                 401,
+#             )
+#         serialized_response = serialize_session(session)
+#         return jsonify({"message": "Session found", "data": serialized_response}), 200
+#     except Exception as e:
+#         print(e)
+#         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
 @app.route("/dashboard/mindmap", methods=["GET"])
 def handle_mindmap_get():
     try:
-        cards = get_user_mindmaps()
+        cards = get_user_mindmaps(request)
         return jsonify({"message": "Mindmap cards found", "data": cards}), 200
     except Exception as e:
         print(e)
@@ -132,8 +132,12 @@ def handle_mindmap_search():
         request_tags = request.args.get("tags")
         request_title = request.args.get("title")
         request_date = request.args.get("date")
-        date = datetime.fromisoformat(request_date.replace("Z", "+00:00"))
-        cards = get_user_mindmaps_by_query(request_title, request_tags, date)
+        date = (
+            datetime.fromisoformat(request_date.replace("Z", "+00:00"))
+            if request_date
+            else None
+        )
+        cards = get_user_mindmaps_by_query(request, request_title, request_tags, date)
         return jsonify({"message": "Mindmap cards found", "data": cards}), 200
     except Exception as e:
         print(e)
@@ -143,7 +147,7 @@ def handle_mindmap_search():
 @app.route("/dashboard/mindmap/<mindmap_id>", methods=["GET"])
 def handle_mindmap_detail(mindmap_id: str):
     try:
-        mindmap = get_mindmap_detail(mindmap_id)
+        mindmap = get_mindmap_detail(request, mindmap_id)
         return jsonify({"message": "Mindmap detail found", "data": mindmap}), 200
     except Exception as e:
         print(e)
@@ -153,7 +157,7 @@ def handle_mindmap_detail(mindmap_id: str):
 @app.route("/dashboard/mindmap/tags", methods=["GET"])
 def handle_mindmap_tags():
     try:
-        tags = get_tags()
+        tags = get_tags(request)
         return jsonify({"message": "Mindmap tags found", "data": tags}), 200
     except Exception as e:
         print(e)
@@ -190,6 +194,7 @@ def handle_mindmap_create():
         os.remove(file_path)
 
         mindmap = insert_mindmap(
+            request,
             title,
             description,
             date,
@@ -199,7 +204,7 @@ def handle_mindmap_create():
         print("inserted mindmap")
 
         for output_topic in mindmap_agent_output["topics"]:
-            topic = insert_topic(output_topic["title"], mindmap["id"])
+            topic = insert_topic(request, output_topic["title"], mindmap["id"])
             print("inserted topic")
             if topic is None:
                 continue
@@ -207,7 +212,7 @@ def handle_mindmap_create():
             for content in output_topic["content"]:
                 if content is None:
                     continue
-                insert_content(content["text"], topic["id"])
+                insert_content(request, content["text"], topic["id"])
                 print("inserted content")
 
         response: MindMapResponse = {

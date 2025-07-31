@@ -1,12 +1,13 @@
 from typing import List
 from datetime import datetime
+from flask import Request
 
 from src.flask.models.mindmap_models import MindMap, MindMapResponse
-
-from .client import supabase
+from .client import get_client
 
 
 def insert_mindmap(
+    request: Request,
     title: str,
     description: str,
     date: str,
@@ -16,6 +17,8 @@ def insert_mindmap(
     """
     Insert a new mindmap for the current user.
     """
+    client = get_client(request)
+
     # Convert ISO string to datetime
     parsed_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
 
@@ -28,28 +31,30 @@ def insert_mindmap(
     }
 
     # We don't need to explicitly set user_id as it's handled by RLS
-    result = supabase.table("MindMap").insert(data).execute()
+    result = client.table("MindMap").insert(data).execute()
 
     return result.data[0] if result.data else None
 
 
-def get_user_mindmaps() -> List[MindMapResponse]:
+def get_user_mindmaps(request: Request) -> List[MindMapResponse]:
     """
     Get all mindmaps for the current user.
     """
+    client = get_client(request)
     result = (
-        supabase.table("MindMap").select("id, title, description, tags, date").execute()
+        client.table("MindMap").select("id, title, description, tags, date").execute()
     )
     return result.data if result.data else []
 
 
 def get_user_mindmaps_by_query(
-    title: str, tags: List[str], date: str
+    request: Request, title: str = None, tags: List[str] = None, date: str = None
 ) -> List[MindMapResponse]:
     """
     Get all mindmaps for the current user by query.
     """
-    select = supabase.table("MindMap").select("id, title, description, tags, date")
+    client = get_client(request)
+    select = client.table("MindMap").select("id, title, description, tags, date")
 
     if title:
         select = select.eq("title", title)
@@ -62,19 +67,19 @@ def get_user_mindmaps_by_query(
     return result.data if result.data else []
 
 
-def get_tags() -> List[str]:
+def get_tags(request: Request) -> List[str]:
     """
     Get all tags for the current user.
     """
-    result = supabase.table("MindMap").select("tags").execute()
+    client = get_client(request)
+    result = client.table("MindMap").select("tags").execute()
     return list(set(result.data[0]["tags"])) if result.data else []
 
 
-def get_mindmap_detail(mindmap_id: str) -> MindMap | None:
+def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap | None:
     """
     Get a specific mindmap by ID.
     """
-    result = (
-        supabase.table("MindMap").select("*").eq("id", mindmap_id).limit(1).execute()
-    )
+    client = get_client(request)
+    result = client.table("MindMap").select("*").eq("id", mindmap_id).limit(1).execute()
     return result.data[0] if result.data else None

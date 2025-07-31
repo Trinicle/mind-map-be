@@ -1,23 +1,23 @@
-from supabase import ClientOptions, create_client, Client
+from supabase import ClientOptions, create_client as create_supabase_client, Client
 import os
 from dotenv import load_dotenv
-import httpx
-from supabase.lib.client_options import DEFAULT_HEADERS
+from flask import Request
 
 load_dotenv()
 
-
-def get_client() -> Client:
-    client = httpx.Client(
-        timeout=30.0,
-        limits=httpx.Limits(max_connections=20),
-        transport=httpx.HTTPTransport(retries=3),
-    )
-
-    options = ClientOptions(
-        headers=DEFAULT_HEADERS, httpx_client=client, postgrest_client_timeout=30
-    )
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"), options)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
-supabase = get_client()
+def get_client(request: Request = None) -> Client:
+    """
+    Create a Supabase client for the current request.
+    If request is provided and has Authorization header, creates an authenticated client.
+    Otherwise returns an anonymous client.
+    """
+    options = None
+    if request and request.headers.get("Authorization"):
+        auth_token = request.headers["Authorization"].replace("Bearer ", "")
+        options = ClientOptions(headers={"Authorization": f"Bearer {auth_token}"})
+
+    return create_supabase_client(SUPABASE_URL, SUPABASE_KEY, options)
