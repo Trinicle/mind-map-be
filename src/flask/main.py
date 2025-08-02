@@ -1,9 +1,9 @@
 import os
-from flask import Flask, Request, request, jsonify
+from flask import Flask, request, jsonify
 from gotrue import Session
-from src.agent.main import create_mindmap
-from src.flask.models.mindmap_models import MindMapPostRequest, MindMapResponse
-from src.flask.supabase.auth import UserModel, get_session, signin, signout, signup
+from src.agent.main import analyze_transcript
+from src.flask.models.mindmap_models import MindMapResponse
+from src.flask.supabase.auth import UserModel, refresh_session, signin, signout, signup
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
@@ -11,17 +11,19 @@ from gotrue.types import AuthResponse
 from src.flask.supabase.content import insert_content
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
-    get_tags,
     get_user_mindmaps,
     get_user_mindmaps_by_query,
     insert_mindmap,
 )
-from src.flask.supabase.tags import insert_tags
+from src.flask.supabase.tag import get_tags, insert_tags
 from src.flask.supabase.topic import insert_topic
 import json
 from datetime import datetime
 
 UPLOAD_FOLDER = "uploads"
+
+# Ensure upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 CORS(
@@ -101,6 +103,16 @@ def handle_signout():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
+@app.route("/auth/session", methods=["GET"])
+def handle_session():
+    try:
+        session = refresh_session(request)
+        return jsonify({"message": "Session found", "data": session}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
 @app.route("/dashboard/mindmap", methods=["GET"])
 def handle_mindmap_get():
     try:
@@ -164,48 +176,69 @@ def handle_mindmap_create():
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(file_path)
 
-        mindmap_request: MindMapPostRequest = {
-            "title": title,
-            "description": description,
-            "date": date,
-            "file_path": file_path,
-        }
+        # Convert to absolute path for the agent
+        absolute_file_path = os.path.abspath(file_path)
 
-        mindmap_agent_output = create_mindmap(mindmap_request)
-        if mindmap_agent_output is None:
-            return jsonify({"message": "Failed to create mindmap"}), 400
+        auth_token = request.headers.get("Authorization")
+        if not auth_token:
+            return jsonify({"message": "Authorization token is required"}), 401
 
-        os.remove(file_path)
+        auth_token = auth_token.replace("Bearer ", "")
 
-        mindmap = insert_mindmap(
-            request,
+        # Analyze transcript using AI agent
+        analysis_result = analyze_transcript(
             title,
             description,
             date,
-            mindmap_agent_output["participants"],
+            absolute_file_path,
+            auth_token,
         )
+        if analysis_result is None:
+            os.remove(file_path)
+            return jsonify({"message": "Failed to analyze transcript"}), 400
+
+        # Clean up uploaded file
+        os.remove(file_path)
+
+        # Extract data from analysis
+        transcript_id = analysis_result.get("transcript_id", "")
+        participants = analysis_result.get("participants", [])
+        topics_data = analysis_result.get("topics", [])
+
+        # Insert mindmap into database
+        mindmap = insert_mindmap(
+            request, title, description, date, participants, transcript_id
+        )
+        if mindmap is None:
+            return jsonify({"message": "Failed to create mindmap"}), 400
         print("inserted mindmap")
 
-        tags = insert_tags(request, tags)
+        # Insert tags
+        tags = insert_tags(request, tags, mindmap["id"])
 
-        for output_topic in mindmap_agent_output["topics"]:
-            topic = insert_topic(request, output_topic["title"], mindmap["id"])
+        # Insert topics and their content
+        for topic_data in topics_data:
+            topic = insert_topic(request, topic_data["title"], mindmap["id"])
             print("inserted topic")
             if topic is None:
                 continue
 
-            for content in output_topic["content"]:
-                if content is None:
-                    continue
-                insert_content(request, content["text"], topic["id"])
-                print("inserted content")
+            for content_item in topic_data.get("content", []):
+                if content_item and content_item.get("text"):
+                    insert_content(
+                        request,
+                        content_item["text"],
+                        content_item["speaker"],
+                        topic["id"],
+                    )
+                    print("inserted content")
 
         response: MindMapResponse = {
             "id": mindmap["id"],
             "title": mindmap["title"],
             "description": mindmap["description"],
             "date": mindmap["date"],
-            "tags": tags,
+            "tags": [tag["name"] for tag in tags],
         }
 
         return jsonify({"message": "Mindmap created", "data": response}), 200

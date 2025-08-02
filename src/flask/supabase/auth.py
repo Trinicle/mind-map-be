@@ -41,13 +41,7 @@ def signout(request: Request):
     return client.auth.sign_out()
 
 
-def get_session(request: Request):
+def refresh_session(request: Request):
     """Get the current session from the request"""
     client = get_client(request)
-    return client.auth.get_session()
-
-
-def get_user(request: Request):
-    """Get the current authenticated user from the request"""
-    session = get_session(request)
-    return session.user if session else None
+    return client.auth.refresh_session()

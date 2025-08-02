@@ -1,51 +1,64 @@
+import datetime
 from langchain_core.prompts import PromptTemplate
 
-# Prompt for parsing transcript into topics
+# Prompt for analyzing transcript content and creating topic structure
 parse_transcript_prompt = PromptTemplate.from_template(
     """
-    You are an AI assistant that organizes meeting transcripts into structured topic clusters.
-
-    First, extract the text from the document at this path: {file_path}
-
-    Then, analyze the text with these goals:
-    1. Clear out any noise from the transcript, make it more readable by correcting grammar and punctuation, and removing any non-essential information.
-    2. Insert the transcript into the database.
-    3. Break the transcript into distinct topics.
-    4. Assign each segment of conversation to exactly one topic, only use information from the transcript to assign the conversation to a topic.
-    5. Generate a short, descriptive title (maximum 4 words) for each topic.
-    6. Identify and describe connections between related topics.
-
-    Requirements:
-    - A topic must represent a single idea or theme.
-    - A topics title should be unique.
-    - A topic title must generalize the content (e.g., "Client Onboarding" not "Client").
-    - A conversation cannot belong to multiple topics.
-    - Multiple conversations may belong to the same topic.
-    - Topics can be connected if they are contextually or logically related, but still distinct.
-
-    RESPONSE FORMAT INSTRUCTIONS:
-
-    When responding, use the following format
+    You are an AI assistant that analyzes meeting transcripts to extract meaningful topics and insights.
     
+    Context:
+    - Title: {title}
+    - Description: {description} 
+    - Date: {date}
+    - File path of text to extract: {file_path}
+    - auth_token: {auth_token}
+
+    Your task is to analyze the transcript:
+    1. Extract the text from the file at this path: {file_path}
+    2. Clean the transcript by:
+       - Removing timestamps, speaker labels, and platform-specific noise
+       - Correcting grammar, punctuation, and capitalization
+       - Removing filler words (um, uh, etc.) and transcription errors
+       - Handling different formats (Zoom, Teams, Discord, etc.)
+       - Improving readability while preserving meaning
+    3. Insert the full transcript after cleaning into the database using the auth token: {auth_token}
+       - The transcript id is the id of the inserted transcript
+       - You must use a tool to insert the transcript into the database
+    4. Identify the participants who spoke in the meeting
+    5. Organize the content into distinct, meaningful topics
+
+    For topic organization:
+    - Each topic should represent a single, coherent theme or discussion point
+    - Create concise titles (maximum 4 words) that capture the essence of each topic
+    - Extract relevant content segments that support each topic
+    - Identify logical connections between related topics
+
+    Quality requirements:
+    - Topic titles should be unique and descriptive (e.g., "Client Onboarding Process" not just "Client")
+    - Each content segment should belong to exactly one topic
+    - Topics can be connected if they're contextually related but still distinct
+    - Use only information directly from the transcript
+
+    Return your analysis in this JSON format:
     {{
-        "transcript_id": string, // The id of the transcript that was inserted into the database
-        "participants": string[], // A list of the names of the participants that had an impact on the transcript
+        "transcript_id": string, // Unique identifier for the transcript outputted from the inserting the transcript into the database
+        "participants": string[], // Names of people who participated in the meeting
         "topics": [
             {{
-                "title": string, // The title of the topic
+                "title": string, // Concise, descriptive topic title
                 "content": [
-                  {{
-                    "text": string // The text of the content
-                  }},
-                  // A list of direct quotes from the transcript supporting the topic
+                    {{
+                        "speaker": string, // Name of the speaker
+                        "text": string // Direct quote or paraphrased content from transcript
+                    }}
                 ]
-            }},
+            }}
         ],
         "connections": [
             {{
-                "from_topic": string, // The title of the topic that is connected to the current topic
-                "to_topic": string, // The title of the topic that is connected from the current topic
-                "reason": string, // A short description of why the two topics are connected
+                "from_topic": string, // Source topic title
+                "to_topic": string, // Connected topic title  
+                "reason": string // Brief explanation of the connection
             }}
         ]
     }}
@@ -131,9 +144,17 @@ transcript_notes_prompt = PromptTemplate.from_template(
 )
 
 
-def get_transcript_prompt(file_path: str) -> str:
-    """Get prompt for parsing transcript into topics."""
-    return parse_transcript_prompt.format(file_path=file_path)
+def get_transcript_prompt(
+    file_path: str, title: str, description: str, date: datetime, auth_token: str
+) -> str:
+    """Get prompt for analyzing transcript content and creating topic structure."""
+    return parse_transcript_prompt.format(
+        file_path=file_path,
+        title=title,
+        description=description,
+        date=date,
+        auth_token=auth_token,
+    )
 
 
 def get_followup_questions_prompt(topic_title: str, topic_content: str) -> str:

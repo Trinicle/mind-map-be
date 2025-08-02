@@ -12,6 +12,7 @@ def insert_mindmap(
     description: str,
     date: str,
     participants: List[str] = [],
+    transcript_id: str = None,
 ) -> MindMap:
     """
     Insert a new mindmap for the current user.
@@ -26,6 +27,7 @@ def insert_mindmap(
         "description": description,
         "date": parsed_date.isoformat(),  # Convert back to ISO format for Postgres
         "participants": participants,
+        "transcript_id": transcript_id,
     }
 
     # We don't need to explicitly set user_id as it's handled by RLS
@@ -61,19 +63,6 @@ def get_user_mindmaps_by_query(
         select = select.eq("date", date)
 
     result = select.execute()
-    return result.data if result.data else []
-
-
-def get_tags(request: Request) -> List[str]:
-    """
-    Get all tags for the current user.
-    """
-    client = get_client(request)
-
-    request_name = request.args.get("name")
-    result = (
-        client.table("Tags").select("name").like("name", f"%{request_name}%").execute()
-    )
     return result.data if result.data else []
 
 

@@ -1,5 +1,6 @@
 from flask import Request
 from src.flask.models.topic_models import Topic
+from src.flask.supabase.client import get_client
 
 
 def insert_topic(request: Request, title: str, mindmap_id: str) -> Topic | None:

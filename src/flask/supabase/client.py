@@ -21,3 +21,13 @@ def get_client(request: Request = None) -> Client:
         options = ClientOptions(headers={"Authorization": f"Bearer {auth_token}"})
 
     return create_supabase_client(SUPABASE_URL, SUPABASE_KEY, options)
+
+
+def get_client_from_auth_token(auth_token: str) -> Client:
+    """
+    Create a Supabase client for the current request.
+    If request is provided and has Authorization header, creates an authenticated client.
+    Otherwise returns an anonymous client.
+    """
+    options = ClientOptions(headers={"Authorization": f"Bearer {auth_token}"})
+    return create_supabase_client(SUPABASE_URL, SUPABASE_KEY, options)
