@@ -10,6 +10,7 @@ class MindMap(TypedDict):
     title: str
     participants: List[str]
     description: str
+    tags: List[str]
     created_at: datetime
     date: datetime
 

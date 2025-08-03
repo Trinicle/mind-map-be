@@ -15,7 +15,7 @@ class Topic(TypedDict):
     title: str
     updated_at: datetime
     created_at: datetime
-    related_topics: List[str]
+    connected_topics: List[str]
 
 
 class GetTopicsRequest(TypedDict):

@@ -23,9 +23,11 @@ from src.flask.supabase.mindmap import (
     insert_mindmap,
 )
 from src.flask.supabase.tag import get_tags, insert_tags_async
-from src.flask.supabase.topic import insert_topic_async
+from src.flask.supabase.topic import get_topics, insert_topic_async
 import json
 from datetime import datetime
+
+from src.flask.supabase.transcript import get_transcript
 
 UPLOAD_FOLDER = "uploads"
 
@@ -235,8 +237,12 @@ def handle_mindmap_create():
             # Add topic insertion tasks
             topic_tasks = []
             for topic_data in topics_data:
+                connected_topics = topic_data.get("connected_topics", [])
                 topic_task = insert_topic_with_content_async(
-                    request, topic_data, mindmap["id"]
+                    request,
+                    topic_data,
+                    connected_topics,
+                    mindmap["id"],
                 )
                 topic_tasks.append(topic_task)
 
@@ -246,9 +252,13 @@ def handle_mindmap_create():
 
             return tags_result, topics_results
 
-        async def insert_topic_with_content_async(request, topic_data, mindmap_id):
+        async def insert_topic_with_content_async(
+            request, topic_data, connected_topics, mindmap_id
+        ):
             # Insert topic first
-            topic = await insert_topic_async(request, topic_data["title"], mindmap_id)
+            topic = await insert_topic_async(
+                request, topic_data["title"], connected_topics, mindmap_id
+            )
             print("inserted topic")
             if topic is None:
                 return None
@@ -296,6 +306,25 @@ def handle_mindmap_get_detail(mindmap_id: str):
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/mindmap/<mindmap_id>/topics", methods=["GET"])
+def handle_mindmap_topics(mindmap_id: str):
+    try:
+        topics = get_topics(request, mindmap_id)
+        return jsonify({"message": "Mindmap topics found", "data": topics}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/mindmap/<mindmap_id>/transcript", methods=["GET"])
+def handle_transcript_get_detail(mindmap_id: str):
+    try:
+        transcript = get_transcript(request, mindmap_id)
+        return jsonify({"message": "Transcript detail found", "data": transcript}), 200
+    except Exception as e:
+        print(e)
 
 
 def main():

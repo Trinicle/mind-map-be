@@ -1,5 +1,6 @@
+from flask import Request
 from src.flask.models.transcript_models import Transcript
-from .client import get_client_from_auth_token
+from .client import get_client, get_client_from_auth_token
 
 
 def insert_transcript(auth_token: str, text: str) -> Transcript:
@@ -20,3 +21,14 @@ def insert_transcript(auth_token: str, text: str) -> Transcript:
         if hasattr(e, "details"):
             print(f"Error details: {e.details}")
         raise e
+
+
+def get_transcript(request: Request, mindmap_id: str) -> Transcript:
+    """
+    Get the transcript for the current user.
+    """
+    client = get_client(request)
+    result = client.rpc(
+        "get_transcript_by_mindmap_id", {"input_id": mindmap_id}
+    ).execute()
+    return result.data[0] if result.data else None

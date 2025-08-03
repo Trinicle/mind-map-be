@@ -16,7 +16,7 @@ parse_transcript_prompt = PromptTemplate.from_template(
     Your task is to analyze the transcript:
     1. Extract the text from the file at this path: {file_path}
     2. Clean the transcript by:
-       - Removing timestamps, speaker labels, and platform-specific noise
+       - Removing timestamps and platform-specific noise. Leave speaker labels.
        - Correcting grammar, punctuation, and capitalization
        - Removing filler words (um, uh, etc.) and transcription errors
        - Handling different formats (Zoom, Teams, Discord, etc.)
@@ -51,16 +51,10 @@ parse_transcript_prompt = PromptTemplate.from_template(
                         "speaker": string, // Name of the speaker
                         "text": string // Direct quote or paraphrased content from transcript
                     }}
-                ]
+                ],
+                "connected_topics": string[] // Related topics
             }}
         ],
-        "connections": [
-            {{
-                "from_topic": string, // Source topic title
-                "to_topic": string, // Connected topic title  
-                "reason": string // Brief explanation of the connection
-            }}
-        ]
     }}
     """
 )
