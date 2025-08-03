@@ -42,7 +42,6 @@ def get_user_mindmaps(request: Request) -> List[MindMapResponse]:
     """
     client = get_client(request)
     result = client.rpc("get_mindmaps_with_tags").execute()
-
     return result.data if result.data else []
 
 
@@ -71,5 +70,7 @@ def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap | None:
     Get a specific mindmap by ID.
     """
     client = get_client(request)
-    result = client.table("MindMap").select("*").eq("id", mindmap_id).limit(1).execute()
+    result = client.rpc(
+        "get_mindmap_with_tags_by_id", {"input_id": mindmap_id}
+    ).execute()
     return result.data[0] if result.data else None

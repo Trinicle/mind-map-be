@@ -41,7 +41,7 @@ def signout(request: Request):
     return client.auth.sign_out()
 
 
-def refresh_session(request: Request):
+def refresh_session(request: Request, refresh_token: str):
     """Get the current session from the request"""
     client = get_client(request)
-    return client.auth.refresh_session()
+    return client.auth.refresh_session(refresh_token)

@@ -1,22 +1,29 @@
 import os
+import asyncio
 from flask import Flask, request, jsonify
 from gotrue import Session
 from src.agent.main import analyze_transcript
 from src.flask.models.mindmap_models import MindMapResponse
-from src.flask.supabase.auth import UserModel, refresh_session, signin, signout, signup
+from src.flask.supabase.auth import (
+    UserModel,
+    refresh_session,
+    signin,
+    signout,
+    signup,
+)
 from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 
-from src.flask.supabase.content import insert_content
+from src.flask.supabase.content import insert_content_async
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
     get_user_mindmaps,
     get_user_mindmaps_by_query,
     insert_mindmap,
 )
-from src.flask.supabase.tag import get_tags, insert_tags
-from src.flask.supabase.topic import insert_topic
+from src.flask.supabase.tag import get_tags, insert_tags_async
+from src.flask.supabase.topic import insert_topic_async
 import json
 from datetime import datetime
 
@@ -103,11 +110,14 @@ def handle_signout():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
-@app.route("/auth/session", methods=["GET"])
+@app.route("/auth/refresh", methods=["POST"])
 def handle_session():
     try:
-        session = refresh_session(request)
-        return jsonify({"message": "Session found", "data": session}), 200
+        data = request.json
+        refresh_token = data.get("refresh_token")
+        response = refresh_session(request, refresh_token)
+        serialized_response = serialize_auth_response(response)
+        return jsonify({"message": "Session found", "data": serialized_response}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -213,25 +223,56 @@ def handle_mindmap_create():
             return jsonify({"message": "Failed to create mindmap"}), 400
         print("inserted mindmap")
 
-        # Insert tags
-        tags = insert_tags(request, tags, mindmap["id"])
+        # Insert tags and topics with content in parallel using async
+        async def insert_data_async():
+            # Create tasks for parallel execution
+            tasks = []
 
-        # Insert topics and their content
-        for topic_data in topics_data:
-            topic = insert_topic(request, topic_data["title"], mindmap["id"])
+            # Add tags insertion task
+            tags_task = insert_tags_async(request, tags, mindmap["id"])
+            tasks.append(tags_task)
+
+            # Add topic insertion tasks
+            topic_tasks = []
+            for topic_data in topics_data:
+                topic_task = insert_topic_with_content_async(
+                    request, topic_data, mindmap["id"]
+                )
+                topic_tasks.append(topic_task)
+
+            # Wait for tags and all topics to complete
+            tags_result = await tags_task
+            topics_results = await asyncio.gather(*topic_tasks, return_exceptions=True)
+
+            return tags_result, topics_results
+
+        async def insert_topic_with_content_async(request, topic_data, mindmap_id):
+            # Insert topic first
+            topic = await insert_topic_async(request, topic_data["title"], mindmap_id)
             print("inserted topic")
             if topic is None:
-                continue
+                return None
 
+            # Insert all content for this topic in parallel
+            content_tasks = []
             for content_item in topic_data.get("content", []):
                 if content_item and content_item.get("text"):
-                    insert_content(
+                    content_task = insert_content_async(
                         request,
                         content_item["text"],
                         content_item["speaker"],
                         topic["id"],
                     )
-                    print("inserted content")
+                    content_tasks.append(content_task)
+
+            if content_tasks:
+                await asyncio.gather(*content_tasks, return_exceptions=True)
+                print("inserted content for topic")
+
+            return topic
+
+        # Run the async operations
+        tags, topics_results = asyncio.run(insert_data_async())
 
         response: MindMapResponse = {
             "id": mindmap["id"],
@@ -242,6 +283,16 @@ def handle_mindmap_create():
         }
 
         return jsonify({"message": "Mindmap created", "data": response}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/mindmap/<mindmap_id>", methods=["GET"])
+def handle_mindmap_get_detail(mindmap_id: str):
+    try:
+        mindmap = get_mindmap_detail(request, mindmap_id)
+        return jsonify({"message": "Mindmap detail found", "data": mindmap}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
