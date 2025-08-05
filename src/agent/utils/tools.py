@@ -14,7 +14,7 @@ llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 vectorstore = PGVector(
     connection_string=os.getenv("DATABASE_URL"),
     embedding=embeddings,
-    collection_name="Transcript",
+    collection_name="Transcript_Vector",
     use_jsonb=True,
 )
 
