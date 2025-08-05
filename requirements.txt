@@ -9,4 +9,6 @@ supabase
 flask-cors
 unstructured
 dotenv
-firecrawl
+langchain_tavily
+psycopg_pool
+langchain_postgres

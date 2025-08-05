@@ -1,6 +1,25 @@
+import os
+from typing import List
 from flask import Request
+from dotenv import load_dotenv
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
-from .client import get_client, get_client_from_auth_token
+from .client import get_client
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores.pgvector import PGVector
+
+load_dotenv()
+
+CHUNK_SIZE = 1500
+CHUNK_OVERLAP = 200
+
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+vectorstore = PGVector(
+    connection_string=os.getenv("DATABASE_URL"),
+    embedding=embeddings,
+    collection_name="Transcript",
+    use_jsonb=True,
+)
 
 
 def insert_transcript(request: Request, text: str) -> Transcript:
@@ -26,6 +45,27 @@ def insert_transcript(request: Request, text: str) -> Transcript:
         if hasattr(e, "details"):
             print(f"Error details: {e.details}")
         raise e
+
+
+def insert_transcript_as_vector(request: Request, text: str, transcript_id: str):
+    chunks = _chunk_transcript(text)
+    client = get_client(request)
+    user_id = client.auth.get_user().id
+
+    metadata = {
+        "transcript_id": transcript_id,
+        "user_id": user_id,
+    }
+
+    vectorstore.add_texts(chunks, metadatas=[metadata] * len(chunks))
+
+
+def _chunk_transcript(text: str) -> List[str]:
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+    )
+    return text_splitter.split_text(text)
 
 
 def get_transcript(request: Request, mindmap_id: str) -> Transcript:

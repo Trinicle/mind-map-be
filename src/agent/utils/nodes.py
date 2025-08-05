@@ -1,4 +1,3 @@
-import re
 from typing import List
 from dotenv import load_dotenv
 from langchain_community.document_loaders import (
@@ -8,12 +7,15 @@ from langchain_community.document_loaders import (
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel
+from src.agent.utils.tools import tools
 from src.agent.utils.prompts import MindMapPrompts
-from src.agent.utils.state import Content, Topic, TranscriptState
+from src.agent.utils.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm_with_tools = llm.bind_tools(tools)
 
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
@@ -140,3 +142,18 @@ def identify_topics_node(state: TranscriptState):
                         existing_connected.add(connected_topic)
 
     return {"topics": list(topics_dict.values())}
+
+
+def query_node(state: ChatBotState):
+    return {"messages": [llm_with_tools.invoke(state.messages)]}
+
+
+tool_node = ToolNode(tools)
+
+
+def analyze_node(state: ChatBotState):
+    pass
+
+
+def analyze_condition_node(state: ChatBotState):
+    pass

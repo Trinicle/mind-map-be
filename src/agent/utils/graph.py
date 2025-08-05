@@ -14,7 +14,6 @@ from src.agent.utils.state import TranscriptState
 
 transcript_builder = StateGraph(TranscriptState)
 
-transcript_builder.set_entry_point("load_transcript")
 transcript_builder.add_node("load_transcript", load_transcript_node)
 transcript_builder.add_node("clean_transcript", clean_transcript_node)
 transcript_builder.add_node("quality_check", quality_check_node)

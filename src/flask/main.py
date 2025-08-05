@@ -30,7 +30,11 @@ from src.flask.supabase.topic import get_topics, insert_topic_async
 import json
 from datetime import datetime
 
-from src.flask.supabase.transcript import get_transcript, insert_transcript
+from src.flask.supabase.transcript import (
+    get_transcript,
+    insert_transcript,
+    insert_transcript_as_vector,
+)
 
 UPLOAD_FOLDER = "uploads"
 
@@ -221,6 +225,7 @@ def handle_mindmap_create():
 
         transcript = insert_transcript(request, result.transcript)
         transcript_id = transcript.id
+        insert_transcript_as_vector(request, result.transcript, transcript_id)
 
         mindmap = insert_mindmap(
             request, title, description, date, participants, transcript_id
@@ -341,6 +346,15 @@ def handle_transcript_get_detail(mindmap_id: str):
             ),
             200,
         )
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/chat", methods=["POST"])
+def handle_chat():
+    try:
+        data = request.json
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
