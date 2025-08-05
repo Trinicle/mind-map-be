@@ -6,7 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
 from .client import get_client
 from langchain_openai import OpenAIEmbeddings
-from langchain.vectorstores.pgvector import PGVector
+from langchain_postgres import PGVector
 
 load_dotenv()
 

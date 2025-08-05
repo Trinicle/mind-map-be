@@ -84,3 +84,22 @@ class MindMapPrompts:
 		
 		Ensure each content segment belongs to exactly one topic, and use only information directly from the transcript.
         """
+
+
+class ChatBotPrompts:
+    CHATBOT_SYSTEM = """
+    You are a helpful assistant that can answer relevant questions about a transcript.
+    """
+
+    @staticmethod
+    def chatbot_prompt(context: str, query: str):
+        if context:
+            return f"""
+			Here is the relevant transcript id to query off of {context}.
+            Given this query {query} and the relevant transcript id, use any of the necessary tools supplied to answer the query.
+            Prefer to use the query_transcript tool as it is more likely to be relevant to the query.
+            """
+        return f"""
+		Here is the query: {query}
+		Use any of the necessary tools supplied to answer the query. 
+        """

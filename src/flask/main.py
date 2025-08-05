@@ -4,7 +4,9 @@ from typing import List
 from flask import Flask, Request, request, jsonify
 from gotrue import Session
 from src.agent.utils.graph import transcript_graph
-from src.agent.utils.state import TranscriptState
+from src.agent.utils.state import TranscriptState, ChatBotState
+from src.agent.utils.chatbot import chatbot
+from langchain_core.messages import HumanMessage
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.models.topic_models import Topic
 from src.flask.supabase.auth import (
@@ -18,6 +20,7 @@ from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 
+from src.flask.supabase.client import get_client
 from src.flask.supabase.content import insert_content_async
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
@@ -35,6 +38,13 @@ from src.flask.supabase.transcript import (
     insert_transcript,
     insert_transcript_as_vector,
 )
+from src.flask.supabase.conversation import (
+    create_conversation,
+    get_conversation,
+    get_user_conversations,
+    update_conversation_title,
+)
+from src.flask.models.conversation_models import ConversationCreateRequest, ChatMessage
 
 UPLOAD_FOLDER = "uploads"
 
@@ -351,12 +361,130 @@ def handle_transcript_get_detail(mindmap_id: str):
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
+@app.route("/conversations", methods=["POST"])
+def create_conversation_endpoint():
+    """Create a new conversation"""
+    try:
+        data = request.json or {}
+        conversation_request = ConversationCreateRequest(**data)
+
+        conversation = create_conversation(
+            request, conversation_request.transcript_id, conversation_request.title
+        )
+
+        return (
+            jsonify(
+                {
+                    "message": "Conversation created successfully",
+                    "data": conversation.model_dump(),
+                }
+            ),
+            201,
+        )
+    except Exception as e:
+        print(f"Error creating conversation: {e}")
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/conversations", methods=["GET"])
+def get_conversations_endpoint():
+    """Get all conversations for the current user"""
+    try:
+        conversations = get_user_conversations(request)
+        return jsonify({"data": [conv.model_dump() for conv in conversations]}), 200
+    except Exception as e:
+        print(f"Error getting conversations: {e}")
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/conversations/<conversation_id>/history", methods=["GET"])
+def get_conversation_history(conversation_id: str):
+    """Get conversation history (last 10 messages)"""
+    try:
+        conversation = get_conversation(request, conversation_id)
+        if not conversation:
+            return jsonify({"message": "Conversation not found"}), 404
+
+        from src.agent.utils.chatbot import checkpoint
+
+        config = {"configurable": {"thread_id": conversation_id}}
+
+        history = []
+        try:
+            state = checkpoint.get(config)
+            if state and "messages" in state.values:
+                messages = state.values["messages"]
+                recent_messages = messages[-10:] if len(messages) > 10 else messages
+
+                for msg in recent_messages:
+                    history.append(
+                        {
+                            "type": msg.__class__.__name__.lower().replace(
+                                "message", ""
+                            ),
+                            "content": msg.content,
+                            "timestamp": getattr(msg, "timestamp", None),
+                        }
+                    )
+        except Exception as e:
+            print(f"Error getting conversation history: {e}")
+            pass
+
+        return (
+            jsonify({"data": {"conversation_id": conversation_id, "history": history}}),
+            200,
+        )
+
+    except Exception as e:
+        print(f"Error getting conversation history: {e}")
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
 @app.route("/chat", methods=["POST"])
 def handle_chat():
+    """Handle chat messages with conversation persistence"""
     try:
         data = request.json
+        chat_request = ChatMessage(**data)
+
+        conversation = get_conversation(request, chat_request.conversation_id)
+        if not conversation:
+            return jsonify({"message": "Conversation not found"}), 404
+
+        client = get_client(request)
+        user_id = client.auth.get_user().id
+
+        initial_state = ChatBotState(
+            messages=[HumanMessage(content=chat_request.message)],
+            user_id=user_id,
+            transcript_id=chat_request.transcript_id or conversation.transcript_id,
+        )
+
+        config = {"configurable": {"thread_id": chat_request.conversation_id}}
+
+        result = chatbot.invoke(initial_state, config=config)
+
+        ai_response = (
+            result["messages"][-1].content
+            if result["messages"]
+            else "I'm sorry, I couldn't process your request."
+        )
+
+        return (
+            jsonify(
+                {
+                    "message": "Chat processed successfully",
+                    "data": {
+                        "response": ai_response,
+                        "conversation_id": chat_request.conversation_id,
+                    },
+                }
+            ),
+            200,
+        )
+
     except Exception as e:
-        print(e)
+        print(f"Error in chat: {e}")
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 

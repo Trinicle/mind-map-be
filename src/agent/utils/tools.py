@@ -3,7 +3,7 @@ from typing import List
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain.vectorstores import PGVector
+from langchain_postgres import PGVector
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 
@@ -29,7 +29,10 @@ def query_internet(query: str):
     Returns:
         str: The results of the search.
     """
-    search = TavilySearch()
+    search = TavilySearch(
+        max_results=2,
+        topic="general",
+    )
     return search.run(query)
 
 
@@ -42,11 +45,10 @@ def query_transcript(query: str, user_id: str) -> List[Document]:
         auth_token: The auth token from the user.
 
     Returns:
-        str: The results of the search.
+        List[Document]: The results of the search.
     """
 
-    documents = vectorstore.similarity_search(query, k=5, filter={"user_id": user_id})
-    pass
+    return vectorstore.similarity_search(query, k=5, filter={"user_id": user_id})
 
 
 tools = [query_internet, query_transcript]

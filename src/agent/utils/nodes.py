@@ -10,7 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel
 from src.agent.utils.tools import tools
-from src.agent.utils.prompts import MindMapPrompts
+from src.agent.utils.prompts import ChatBotPrompts, MindMapPrompts
 from src.agent.utils.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
@@ -144,16 +144,20 @@ def identify_topics_node(state: TranscriptState):
     return {"topics": list(topics_dict.values())}
 
 
+def initial_conversation_node(state: ChatBotState):
+    messages = [
+        SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM),
+        HumanMessage(
+            content=ChatBotPrompts.chatbot_prompt(
+                state.transcript_id, state.messages[-1].content
+            )
+        ),
+    ]
+    return {"messages": [llm_with_tools.invoke(messages)]}
+
+
 def query_node(state: ChatBotState):
     return {"messages": [llm_with_tools.invoke(state.messages)]}
 
 
 tool_node = ToolNode(tools)
-
-
-def analyze_node(state: ChatBotState):
-    pass
-
-
-def analyze_condition_node(state: ChatBotState):
-    pass
