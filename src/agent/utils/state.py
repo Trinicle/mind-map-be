@@ -16,6 +16,7 @@ class Topic(BaseModel):
 class TranscriptState(BaseModel):
     file_path: str
     quality_check: Optional[int] = None
+    transcript_chunks: List[str] = Field(default_factory=list)
     transcript: Optional[str] = None
     participants: List[str] = Field(default_factory=list)
     topics: List[Topic] = Field(default_factory=list)

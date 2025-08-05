@@ -7,12 +7,16 @@ from langchain_community.document_loaders import (
 )
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
 from src.agent.utils.prompts import MindMapPrompts
 from src.agent.utils.state import Content, Topic, TranscriptState
 
 load_dotenv()
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+CHUNK_SIZE = 1500
+CHUNK_OVERLAP = 200
 
 
 class QualityCheckOutput(BaseModel):
@@ -74,30 +78,65 @@ def quality_score_condition_node(state: TranscriptState):
         return "pass"
 
 
-def identify_participants_node(state: TranscriptState):
+def split_transcript_node(state: TranscriptState):
     transcript = state.transcript
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+    )
+    return {"transcript_chunks": text_splitter.split_text(transcript)}
 
+
+def identify_participants_node(state: TranscriptState):
+    transcript_chunks = state.transcript_chunks
     structured_llm = llm.with_structured_output(ParticipantsOutput)
+    participants = set()
+    for chunk in transcript_chunks:
+        messages = [
+            SystemMessage(content=MindMapPrompts.IDENTIFY_PARTICIPANTS_SYSTEM),
+            HumanMessage(content=MindMapPrompts.identify_participants_prompt(chunk)),
+        ]
+        response = structured_llm.invoke(messages)
+        participants.update(response.participants)
 
-    messages = [
-        SystemMessage(content=MindMapPrompts.IDENTIFY_PARTICIPANTS_SYSTEM),
-        HumanMessage(content=MindMapPrompts.identify_participants_prompt(transcript)),
-    ]
-
-    result = structured_llm.invoke(messages)
-    return {"participants": result.participants}
+    return {"participants": list(participants)}
 
 
 def identify_topics_node(state: TranscriptState):
-    transcript = state.transcript
-
+    transcript_chunks = state.transcript_chunks
     structured_llm = llm.with_structured_output(TopicsOutput)
 
-    messages = [
-        SystemMessage(content=MindMapPrompts.IDENTIFY_TOPICS_SYSTEM),
-        HumanMessage(content=MindMapPrompts.identify_topics_prompt(transcript)),
-    ]
+    topics_dict = {}
 
-    result = structured_llm.invoke(messages)
+    for chunk in transcript_chunks:
+        messages = [
+            SystemMessage(content=MindMapPrompts.IDENTIFY_TOPICS_SYSTEM),
+            HumanMessage(content=MindMapPrompts.identify_topics_prompt(chunk)),
+        ]
+        response = structured_llm.invoke(messages)
+        chunk_topics = response.topics
 
-    return {"topics": result.topics}
+        for new_topic in chunk_topics:
+            if new_topic.title not in topics_dict:
+                topics_dict[new_topic.title] = new_topic
+            else:
+                existing_topic = topics_dict[new_topic.title]
+
+                existing_content_set = set()
+                for content in existing_topic.content:
+                    content_id = f"{content.speaker}:{content.text}"
+                    existing_content_set.add(content_id)
+
+                for new_content in new_topic.content:
+                    content_id = f"{new_content.speaker}:{new_content.text}"
+                    if content_id not in existing_content_set:
+                        existing_topic.content.append(new_content)
+                        existing_content_set.add(content_id)
+
+                existing_connected = set(existing_topic.connected_topics)
+                for connected_topic in new_topic.connected_topics:
+                    if connected_topic not in existing_connected:
+                        existing_topic.connected_topics.append(connected_topic)
+                        existing_connected.add(connected_topic)
+
+    return {"topics": list(topics_dict.values())}

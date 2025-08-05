@@ -9,3 +9,4 @@ supabase
 flask-cors
 unstructured
 dotenv
+firecrawl
