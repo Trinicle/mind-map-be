@@ -1,8 +1,7 @@
-from datetime import datetime
-from gotrue import TypedDict
+from pydantic import BaseModel
 
 
-class Transcript(TypedDict):
+class Transcript(BaseModel):
     id: str
     user_id: str
     text: str

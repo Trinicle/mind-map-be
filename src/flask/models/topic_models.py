@@ -1,14 +1,9 @@
-import datetime
-from typing import List, TypedDict
-from src.flask.models.content_models import ContentAgentOutput
+from datetime import datetime
+from typing import List
+from pydantic import BaseModel
 
 
-class TopicAgentOutput(TypedDict):
-    title: str
-    content: List[ContentAgentOutput]
-
-
-class Topic(TypedDict):
+class Topic(BaseModel):
     id: str
     mindmap_id: str
     user_id: str
@@ -18,9 +13,9 @@ class Topic(TypedDict):
     connected_topics: List[str]
 
 
-class GetTopicsRequest(TypedDict):
+class GetTopicsRequest(BaseModel):
     mindmap_id: str
 
 
-class GetTopicsResponse(TypedDict):
+class GetTopicsResponse(BaseModel):
     data: List[Topic]

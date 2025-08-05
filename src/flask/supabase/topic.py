@@ -9,7 +9,19 @@ def get_topics(request: Request, mindmap_id: str) -> list[Topic]:
     """
     client = get_client(request)
     result = client.table("Topic").select("*").eq("mindmap_id", mindmap_id).execute()
-    return result.data if result.data else []
+    data = result.data if result.data else []
+    return [
+        Topic(
+            id=topic["id"],
+            title=topic["title"],
+            mindmap_id=topic["mindmap_id"],
+            user_id=topic["user_id"],
+            updated_at=topic["updated_at"],
+            created_at=topic["created_at"],
+            connected_topics=topic["connected_topics"],
+        )
+        for topic in data
+    ]
 
 
 def insert_topic(
@@ -26,7 +38,16 @@ def insert_topic(
 
     client = get_client(request)
     result = client.table("Topic").insert(data).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    return Topic(
+        id=data["id"],
+        title=data["title"],
+        mindmap_id=data["mindmap_id"],
+        user_id=data["user_id"],
+        updated_at=data["updated_at"],
+        created_at=data["created_at"],
+        connected_topics=data["connected_topics"],
+    )
 
 
 async def insert_topic_async(
@@ -43,4 +64,13 @@ async def insert_topic_async(
 
     client = await get_async_client(request)
     result = await client.table("Topic").insert(data).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    return Topic(
+        id=data["id"],
+        title=data["title"],
+        mindmap_id=data["mindmap_id"],
+        user_id=data["user_id"],
+        updated_at=data["updated_at"],
+        created_at=data["created_at"],
+        connected_topics=data["connected_topics"],
+    )

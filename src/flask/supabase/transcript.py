@@ -3,7 +3,7 @@ from src.flask.models.transcript_models import Transcript
 from .client import get_client, get_client_from_auth_token
 
 
-def insert_transcript(auth_token: str, text: str) -> Transcript:
+def insert_transcript(request: Request, text: str) -> Transcript:
     """
     Insert a new content for the current user.
     """
@@ -12,9 +12,14 @@ def insert_transcript(auth_token: str, text: str) -> Transcript:
     }
 
     try:
-        client = get_client_from_auth_token(auth_token)
+        client = get_client(request)
         result = client.table("Transcript").insert(data).execute()
-        return result.data[0] if result.data else None
+        data = result.data[0] if result.data else None
+        return Transcript(
+            id=data["id"],
+            user_id=data["user_id"],
+            text=data["text"],
+        )
     except Exception as e:
         print(f"Error inserting transcript: {e}")
         print(f"Error type: {type(e)}")
@@ -31,4 +36,9 @@ def get_transcript(request: Request, mindmap_id: str) -> Transcript:
     result = client.rpc(
         "get_transcript_by_mindmap_id", {"input_id": mindmap_id}
     ).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    return Transcript(
+        id=data["id"],
+        user_id=data["user_id"],
+        text=data["text"],
+    )

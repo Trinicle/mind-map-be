@@ -25,15 +25,24 @@ def insert_mindmap(
     data = {
         "title": title,
         "description": description,
-        "date": parsed_date.isoformat(),  # Convert back to ISO format for Postgres
+        "date": parsed_date.isoformat(),
         "participants": participants,
         "transcript_id": transcript_id,
     }
 
-    # We don't need to explicitly set user_id as it's handled by RLS
     result = client.table("MindMap").insert(data).execute()
+    data = result.data[0] if result.data else None
 
-    return result.data[0] if result.data else None
+    return MindMap(
+        id=data["id"],
+        user_id=data["user_id"],
+        title=data["title"],
+        participants=data["participants"],
+        description=data["description"],
+        tags=data["tags"],
+        created_at=data["created_at"],
+        date=data["date"],
+    )
 
 
 def get_user_mindmaps(request: Request) -> List[MindMapResponse]:
@@ -42,7 +51,17 @@ def get_user_mindmaps(request: Request) -> List[MindMapResponse]:
     """
     client = get_client(request)
     result = client.rpc("get_mindmaps_with_tags").execute()
-    return result.data if result.data else []
+    data = result.data if result.data else []
+    return [
+        MindMapResponse(
+            id=mindmap["id"],
+            title=mindmap["title"],
+            description=mindmap["description"],
+            tags=mindmap["tags"],
+            date=mindmap["date"],
+        )
+        for mindmap in data
+    ]
 
 
 def get_user_mindmaps_by_query(
@@ -62,10 +81,20 @@ def get_user_mindmaps_by_query(
         select = select.eq("date", date)
 
     result = select.execute()
-    return result.data if result.data else []
+    data = result.data if result.data else []
+    return [
+        MindMapResponse(
+            id=mindmap["id"],
+            title=mindmap["title"],
+            description=mindmap["description"],
+            tags=mindmap["tags"],
+            date=mindmap["date"],
+        )
+        for mindmap in data
+    ]
 
 
-def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap | None:
+def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap:
     """
     Get a specific mindmap by ID.
     """
@@ -73,4 +102,15 @@ def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap | None:
     result = client.rpc(
         "get_mindmap_with_tags_by_id", {"input_id": mindmap_id}
     ).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    print(data)
+    return MindMap(
+        id=data["id"],
+        user_id=data["user_id"],
+        title=data["title"],
+        participants=data["participants"],
+        description=data["description"],
+        tags=data["tags"],
+        created_at=data["created_at"],
+        date=data["date"],
+    )

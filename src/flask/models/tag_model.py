@@ -1,7 +1,7 @@
-from typing import TypedDict
+from pydantic import BaseModel
 
 
-class Tag(TypedDict):
+class Tag(BaseModel):
     id: str
     user_id: str
     name: str
@@ -9,5 +9,5 @@ class Tag(TypedDict):
     created_at: str
 
 
-class TagResponse(TypedDict):
+class TagResponse(BaseModel):
     name: str

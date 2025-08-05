@@ -1,10 +1,9 @@
-import datetime
-from typing import List, TypedDict
+from datetime import datetime
+from typing import List
+from pydantic import BaseModel
 
-from src.flask.models.topic_models import TopicAgentOutput
 
-
-class MindMap(TypedDict):
+class MindMap(BaseModel):
     id: str
     user_id: str
     title: str
@@ -15,19 +14,7 @@ class MindMap(TypedDict):
     date: datetime
 
 
-class ConnectionAgentOutput(TypedDict):
-    from_topic: str
-    to_topic: str
-    reason: str
-
-
-class MindMapAgentOutput(TypedDict):
-    participants: List[str]
-    topics: List[TopicAgentOutput]
-    connections: List[ConnectionAgentOutput]
-
-
-class MindMapPostRequest(TypedDict):
+class MindMapPostRequest(BaseModel):
     title: str
     description: str
     date: datetime
@@ -35,7 +22,7 @@ class MindMapPostRequest(TypedDict):
     file_path: str
 
 
-class MindMapResponse(TypedDict):
+class MindMapResponse(BaseModel):
     id: str
     title: str
     description: str

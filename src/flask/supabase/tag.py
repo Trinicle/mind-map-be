@@ -22,7 +22,8 @@ def get_tags(request: Request) -> List[TagResponse]:
     else:
         result = client.table("Tags").select("id, name").execute()
 
-    return result.data if result.data else []
+    data = result.data if result.data else []
+    return [TagResponse(name=tag["name"]) for tag in data]
 
 
 def insert_tags(request: Request, tags: List[str], mindmap_id: str) -> List[Tag]:
@@ -30,7 +31,17 @@ def insert_tags(request: Request, tags: List[str], mindmap_id: str) -> List[Tag]
     try:
         data = [{"name": tag, "mindmap_id": mindmap_id} for tag in tags]
         result = client.table("Tags").insert(data).execute()
-        return result.data if result.data else []
+        data = result.data if result.data else []
+        return [
+            Tag(
+                id=tag["id"],
+                user_id=tag["user_id"],
+                name=tag["name"],
+                mindmap_id=mindmap_id,
+                created_at=tag["created_at"],
+            )
+            for tag in data
+        ]
     except Exception as e:
         print(e)
         return []
@@ -43,7 +54,18 @@ async def insert_tags_async(
     try:
         data = [{"name": tag, "mindmap_id": mindmap_id} for tag in tags]
         result = await client.table("Tags").insert(data).execute()
-        return result.data if result.data else []
+        data = result.data if result.data else []
+        tags_list = [
+            Tag(
+                id=tag["id"],
+                user_id=tag["user_id"],
+                name=tag["name"],
+                mindmap_id=mindmap_id,
+                created_at=tag["created_at"],
+            )
+            for tag in data
+        ]
+        return tags_list
     except Exception as e:
         print(e)
         return []

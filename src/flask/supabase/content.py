@@ -17,7 +17,13 @@ def insert_content(
 
     client = get_client(request)
     result = client.table("Content").insert(data).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    return Content(
+        id=data["id"],
+        text=data["text"],
+        speaker=data["speaker"],
+        topic_id=data["topic_id"],
+    )
 
 
 async def insert_content_async(
@@ -34,4 +40,10 @@ async def insert_content_async(
 
     client = await get_async_client(request)
     result = await client.table("Content").insert(data).execute()
-    return result.data[0] if result.data else None
+    data = result.data[0] if result.data else None
+    return Content(
+        id=data["id"],
+        text=data["text"],
+        speaker=data["speaker"],
+        topic_id=data["topic_id"],
+    )

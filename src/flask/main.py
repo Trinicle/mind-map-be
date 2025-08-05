@@ -1,9 +1,12 @@
 import os
 import asyncio
-from flask import Flask, request, jsonify
+from typing import List
+from flask import Flask, Request, request, jsonify
 from gotrue import Session
-from src.agent.main import analyze_transcript
+from src.agent.utils.graph import transcript_graph
+from src.agent.utils.state import TranscriptState
 from src.flask.models.mindmap_models import MindMapResponse
+from src.flask.models.topic_models import Topic
 from src.flask.supabase.auth import (
     UserModel,
     refresh_session,
@@ -27,7 +30,7 @@ from src.flask.supabase.topic import get_topics, insert_topic_async
 import json
 from datetime import datetime
 
-from src.flask.supabase.transcript import get_transcript
+from src.flask.supabase.transcript import get_transcript, insert_transcript
 
 UPLOAD_FOLDER = "uploads"
 
@@ -129,7 +132,12 @@ def handle_session():
 def handle_mindmap_get():
     try:
         cards = get_user_mindmaps(request)
-        return jsonify({"message": "Mindmap cards found", "data": cards}), 200
+        # Convert Pydantic models to dictionaries for JSON serialization
+        serialized_cards = [card.model_dump() for card in cards]
+        return (
+            jsonify({"message": "Mindmap cards found", "data": serialized_cards}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -147,7 +155,12 @@ def handle_mindmap_search():
             else None
         )
         cards = get_user_mindmaps_by_query(request, request_title, request_tags, date)
-        return jsonify({"message": "Mindmap cards found", "data": cards}), 200
+        # Convert Pydantic models to dictionaries for JSON serialization
+        serialized_cards = [card.model_dump() for card in cards]
+        return (
+            jsonify({"message": "Mindmap cards found", "data": serialized_cards}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -157,7 +170,12 @@ def handle_mindmap_search():
 def handle_mindmap_detail(mindmap_id: str):
     try:
         mindmap = get_mindmap_detail(request, mindmap_id)
-        return jsonify({"message": "Mindmap detail found", "data": mindmap}), 200
+        # Convert Pydantic model to dictionary for JSON serialization
+        serialized_mindmap = mindmap.model_dump()
+        return (
+            jsonify({"message": "Mindmap detail found", "data": serialized_mindmap}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -167,7 +185,9 @@ def handle_mindmap_detail(mindmap_id: str):
 def handle_mindmap_tags():
     try:
         tags = get_tags(request)
-        return jsonify({"message": "Mindmap tags found", "data": tags}), 200
+        # Convert Pydantic models to dictionaries for JSON serialization
+        serialized_tags = [tag.model_dump() for tag in tags]
+        return jsonify({"message": "Mindmap tags found", "data": serialized_tags}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -188,36 +208,20 @@ def handle_mindmap_create():
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(file_path)
 
-        # Convert to absolute path for the agent
-        absolute_file_path = os.path.abspath(file_path)
-
-        auth_token = request.headers.get("Authorization")
-        if not auth_token:
-            return jsonify({"message": "Authorization token is required"}), 401
-
-        auth_token = auth_token.replace("Bearer ", "")
-
-        # Analyze transcript using AI agent
-        analysis_result = analyze_transcript(
-            title,
-            description,
-            date,
-            absolute_file_path,
-            auth_token,
+        transcript_state = TranscriptState(
+            file_path=file_path,
         )
-        if analysis_result is None:
-            os.remove(file_path)
-            return jsonify({"message": "Failed to analyze transcript"}), 400
 
-        # Clean up uploaded file
+        result: TranscriptState = transcript_graph.invoke(transcript_state)
+
         os.remove(file_path)
 
-        # Extract data from analysis
-        transcript_id = analysis_result.get("transcript_id", "")
-        participants = analysis_result.get("participants", [])
-        topics_data = analysis_result.get("topics", [])
+        participants = result.participants
+        topics = result.topics
 
-        # Insert mindmap into database
+        transcript = insert_transcript(request, result.transcript)
+        transcript_id = transcript.id
+
         mindmap = insert_mindmap(
             request, title, description, date, participants, transcript_id
         )
@@ -225,53 +229,49 @@ def handle_mindmap_create():
             return jsonify({"message": "Failed to create mindmap"}), 400
         print("inserted mindmap")
 
-        # Insert tags and topics with content in parallel using async
         async def insert_data_async():
-            # Create tasks for parallel execution
             tasks = []
 
-            # Add tags insertion task
-            tags_task = insert_tags_async(request, tags, mindmap["id"])
+            tags_task = insert_tags_async(request, tags, mindmap.id)
             tasks.append(tags_task)
 
-            # Add topic insertion tasks
             topic_tasks = []
-            for topic_data in topics_data:
-                connected_topics = topic_data.get("connected_topics", [])
+            for topic in topics:
+                connected_topics = topic.connected_topics
                 topic_task = insert_topic_with_content_async(
                     request,
-                    topic_data,
+                    topic,
                     connected_topics,
-                    mindmap["id"],
+                    mindmap.id,
                 )
                 topic_tasks.append(topic_task)
 
-            # Wait for tags and all topics to complete
             tags_result = await tags_task
             topics_results = await asyncio.gather(*topic_tasks, return_exceptions=True)
 
             return tags_result, topics_results
 
         async def insert_topic_with_content_async(
-            request, topic_data, connected_topics, mindmap_id
+            request: Request,
+            topic_data: Topic,
+            connected_topics: List[str],
+            mindmap_id: str,
         ):
-            # Insert topic first
             topic = await insert_topic_async(
-                request, topic_data["title"], connected_topics, mindmap_id
+                request, topic_data.title, connected_topics, mindmap_id
             )
             print("inserted topic")
             if topic is None:
                 return None
 
-            # Insert all content for this topic in parallel
             content_tasks = []
             for content_item in topic_data.get("content", []):
                 if content_item and content_item.get("text"):
                     content_task = insert_content_async(
                         request,
-                        content_item["text"],
-                        content_item["speaker"],
-                        topic["id"],
+                        content_item.text,
+                        content_item.speaker,
+                        topic.id,
                     )
                     content_tasks.append(content_task)
 
@@ -281,18 +281,20 @@ def handle_mindmap_create():
 
             return topic
 
-        # Run the async operations
         tags, topics_results = asyncio.run(insert_data_async())
 
-        response: MindMapResponse = {
-            "id": mindmap["id"],
-            "title": mindmap["title"],
-            "description": mindmap["description"],
-            "date": mindmap["date"],
-            "tags": [tag["name"] for tag in tags],
-        }
+        response = MindMapResponse(
+            id=mindmap.id,
+            title=mindmap.title,
+            description=mindmap.description,
+            date=mindmap.date,
+            tags=[tag.name for tag in tags],
+        )
 
-        return jsonify({"message": "Mindmap created", "data": response}), 200
+        return (
+            jsonify({"message": "Mindmap created", "data": response.model_dump()}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -302,7 +304,11 @@ def handle_mindmap_create():
 def handle_mindmap_get_detail(mindmap_id: str):
     try:
         mindmap = get_mindmap_detail(request, mindmap_id)
-        return jsonify({"message": "Mindmap detail found", "data": mindmap}), 200
+        serialized_mindmap = mindmap.model_dump()
+        return (
+            jsonify({"message": "Mindmap detail found", "data": serialized_mindmap}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -312,7 +318,12 @@ def handle_mindmap_get_detail(mindmap_id: str):
 def handle_mindmap_topics(mindmap_id: str):
     try:
         topics = get_topics(request, mindmap_id)
-        return jsonify({"message": "Mindmap topics found", "data": topics}), 200
+        # Convert Pydantic models to dictionaries for JSON serialization
+        serialized_topics = [topic.model_dump() for topic in topics]
+        return (
+            jsonify({"message": "Mindmap topics found", "data": serialized_topics}),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
@@ -322,9 +333,17 @@ def handle_mindmap_topics(mindmap_id: str):
 def handle_transcript_get_detail(mindmap_id: str):
     try:
         transcript = get_transcript(request, mindmap_id)
-        return jsonify({"message": "Transcript detail found", "data": transcript}), 200
+        # Convert Pydantic model to dictionary for JSON serialization
+        serialized_transcript = transcript.model_dump()
+        return (
+            jsonify(
+                {"message": "Transcript detail found", "data": serialized_transcript}
+            ),
+            200,
+        )
     except Exception as e:
         print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
 
 
 def main():

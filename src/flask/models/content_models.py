@@ -1,12 +1,8 @@
-import datetime
-from typing import TypedDict
+from datetime import datetime
+from pydantic import BaseModel
 
 
-class ContentAgentOutput(TypedDict):
-    text: str
-
-
-class Content(TypedDict):
+class Content(BaseModel):
     id: str
     topic_id: str
     user_id: str
