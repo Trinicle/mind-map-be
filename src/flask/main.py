@@ -372,15 +372,45 @@ def create_conversation_endpoint():
             request, conversation_request.transcript_id, conversation_request.title
         )
 
-        return (
-            jsonify(
-                {
-                    "message": "Conversation created successfully",
-                    "data": conversation.model_dump(),
-                }
-            ),
-            201,
-        )
+        response_data = {
+            "message": "Conversation created successfully",
+            "data": conversation.model_dump(),
+        }
+
+        if conversation_request.initial_message:
+            try:
+                client = get_client(request)
+                user_id = client.auth.get_user().id
+
+                initial_state = ChatBotState(
+                    messages=[
+                        HumanMessage(content=conversation_request.initial_message)
+                    ],
+                    user_id=user_id,
+                    transcript_id=conversation.transcript_id,
+                )
+
+                config = {"configurable": {"thread_id": conversation.id}}
+
+                result = chatbot.invoke(initial_state, config=config)
+
+                ai_response = (
+                    result["messages"][-1].content
+                    if result["messages"]
+                    else "I'm sorry, I couldn't process your request."
+                )
+
+                response_data["data"]["initial_response"] = ai_response
+
+            except Exception as chatbot_error:
+                print(f"Error processing initial message: {chatbot_error}")
+                # Don't fail the entire conversation creation if chatbot fails
+                response_data["data"][
+                    "initial_response"
+                ] = "Error processing initial message"
+
+        return jsonify(response_data), 201
+
     except Exception as e:
         print(f"Error creating conversation: {e}")
         return jsonify({"message": "An unexpected error occurred"}), 500

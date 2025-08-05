@@ -33,4 +33,4 @@ chatbot_builder.add_conditional_edges(
     },
 )
 
-chatbot = chatbot_builder.compile(checkpoint=checkpoint)
+chatbot = chatbot_builder.compile(checkpointer=checkpoint)

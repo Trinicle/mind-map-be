@@ -1,5 +1,6 @@
 import os
 from typing import List
+from langchain_core.embeddings import Embeddings
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -12,8 +13,8 @@ load_dotenv()
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 vectorstore = PGVector(
-    connection_string=os.getenv("DATABASE_URL"),
-    embedding=embeddings,
+    connection=os.getenv("DATABASE_URL"),
+    embeddings=embeddings,
     collection_name="Transcript_Vector",
     use_jsonb=True,
 )
@@ -42,7 +43,7 @@ def query_transcript(query: str, user_id: str) -> List[Document]:
 
     Args:
         query: The query to search the transcript for.
-        auth_token: The auth token from the user.
+        user_id: The user id from the user.
 
     Returns:
         List[Document]: The results of the search.

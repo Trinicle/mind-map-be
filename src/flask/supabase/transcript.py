@@ -15,9 +15,9 @@ CHUNK_OVERLAP = 200
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 vectorstore = PGVector(
-    connection_string=os.getenv("DATABASE_URL"),
-    embedding=embeddings,
-    collection_name="Transcript",
+    connection=os.getenv("DATABASE_URL"),
+    embeddings=embeddings,
+    collection_name="Transcript_Vector",
     use_jsonb=True,
 )
 

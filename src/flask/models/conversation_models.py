@@ -15,6 +15,7 @@ class Conversation(BaseModel):
 class ConversationCreateRequest(BaseModel):
     transcript_id: Optional[str] = None
     title: Optional[str] = None
+    initial_message: Optional[str] = None
 
 
 class ChatMessage(BaseModel):
