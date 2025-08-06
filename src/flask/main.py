@@ -5,7 +5,7 @@ from flask import Flask, Request, request, jsonify
 from gotrue import Session
 from src.agent.utils.graph import transcript_graph
 from src.agent.utils.state import TranscriptState, ChatBotState
-from src.agent.utils.chatbot import chatbot
+from src.agent.utils.chatbot import chatbot, checkpoint
 from langchain_core.messages import HumanMessage
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.models.topic_models import Topic
@@ -362,54 +362,23 @@ def handle_transcript_get_detail(mindmap_id: str):
 
 
 @app.route("/conversations", methods=["POST"])
-def create_conversation_endpoint():
+def handle_create_initial_conversation():
     """Create a new conversation"""
     try:
         data = request.json or {}
         conversation_request = ConversationCreateRequest(**data)
 
-        conversation = create_conversation(
-            request, conversation_request.transcript_id, conversation_request.title
+        conversation = create_conversation(request, conversation_request.transcript_id)
+
+        return (
+            jsonify(
+                {
+                    "message": "Conversation created successfully",
+                    "data": conversation.model_dump(),
+                }
+            ),
+            200,
         )
-
-        response_data = {
-            "message": "Conversation created successfully",
-            "data": conversation.model_dump(),
-        }
-
-        if conversation_request.initial_message:
-            try:
-                client = get_client(request)
-                user_id = client.auth.get_user().id
-
-                initial_state = ChatBotState(
-                    messages=[
-                        HumanMessage(content=conversation_request.initial_message)
-                    ],
-                    user_id=user_id,
-                    transcript_id=conversation.transcript_id,
-                )
-
-                config = {"configurable": {"thread_id": conversation.id}}
-
-                result = chatbot.invoke(initial_state, config=config)
-
-                ai_response = (
-                    result["messages"][-1].content
-                    if result["messages"]
-                    else "I'm sorry, I couldn't process your request."
-                )
-
-                response_data["data"]["initial_response"] = ai_response
-
-            except Exception as chatbot_error:
-                print(f"Error processing initial message: {chatbot_error}")
-                # Don't fail the entire conversation creation if chatbot fails
-                response_data["data"][
-                    "initial_response"
-                ] = "Error processing initial message"
-
-        return jsonify(response_data), 201
 
     except Exception as e:
         print(f"Error creating conversation: {e}")
@@ -417,7 +386,7 @@ def create_conversation_endpoint():
 
 
 @app.route("/conversations", methods=["GET"])
-def get_conversations_endpoint():
+def handle_get_conversations():
     """Get all conversations for the current user"""
     try:
         conversations = get_user_conversations(request)
@@ -428,14 +397,12 @@ def get_conversations_endpoint():
 
 
 @app.route("/conversations/<conversation_id>/history", methods=["GET"])
-def get_conversation_history(conversation_id: str):
+def handle_get_conversation_history(conversation_id: str):
     """Get conversation history (last 10 messages)"""
     try:
         conversation = get_conversation(request, conversation_id)
         if not conversation:
             return jsonify({"message": "Conversation not found"}), 404
-
-        from src.agent.utils.chatbot import checkpoint
 
         config = {"configurable": {"thread_id": conversation_id}}
 
@@ -471,7 +438,7 @@ def get_conversation_history(conversation_id: str):
 
 
 @app.route("/chat", methods=["POST"])
-def handle_chat():
+def handle_send_message():
     """Handle chat messages with conversation persistence"""
     try:
         data = request.json
@@ -493,6 +460,7 @@ def handle_chat():
         config = {"configurable": {"thread_id": chat_request.conversation_id}}
 
         result = chatbot.invoke(initial_state, config=config)
+        ai_message = result["messages"][-1].content
 
         ai_response = (
             result["messages"][-1].content
@@ -506,7 +474,6 @@ def handle_chat():
                     "message": "Chat processed successfully",
                     "data": {
                         "response": ai_response,
-                        "conversation_id": chat_request.conversation_id,
                     },
                 }
             ),

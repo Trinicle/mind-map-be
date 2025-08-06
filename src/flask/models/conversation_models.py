@@ -7,15 +7,14 @@ class Conversation(BaseModel):
     id: str
     user_id: str
     transcript_id: Optional[str] = None
-    title: Optional[str] = None
+    title: str
     created_at: datetime
     updated_at: datetime
 
 
 class ConversationCreateRequest(BaseModel):
     transcript_id: Optional[str] = None
-    title: Optional[str] = None
-    initial_message: Optional[str] = None
+    initial_message: str
 
 
 class ChatMessage(BaseModel):

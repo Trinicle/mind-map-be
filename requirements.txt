@@ -11,4 +11,6 @@ unstructured
 dotenv
 langchain_tavily
 psycopg_pool
-langchain_postgres
+psycopg
+psycopg_binary
+psycopg2

@@ -15,7 +15,7 @@ def create_conversation(
 
     try:
         client = get_client(request)
-        result = client.table("conversations").insert(data).execute()
+        result = client.table("Conversation").insert(data).execute()
         data = result.data[0] if result.data else None
         return Conversation(
             id=data["id"],
@@ -35,10 +35,7 @@ def get_conversation(request: Request, conversation_id: str) -> Optional[Convers
     try:
         client = get_client(request)
         result = (
-            client.table("conversations")
-            .select("*")
-            .eq("id", conversation_id)
-            .execute()
+            client.table("Conversation").select("*").eq("id", conversation_id).execute()
         )
 
         if not result.data:
@@ -63,7 +60,7 @@ def get_user_conversations(request: Request) -> List[Conversation]:
     try:
         client = get_client(request)
         result = (
-            client.table("conversations")
+            client.table("Conversation")
             .select("*")
             .order("updated_at", desc=True)
             .execute()
@@ -95,7 +92,7 @@ def update_conversation_title(
     try:
         client = get_client(request)
         result = (
-            client.table("conversations")
+            client.table("Conversation")
             .update({"title": title})
             .eq("id", conversation_id)
             .execute()
