@@ -5,8 +5,8 @@ from langgraph.prebuilt import tools_condition
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
 from src.agent.utils.nodes import (
+    contextual_tool_node,
     query_node,
-    tool_node,
 )
 from src.agent.utils.state import ChatBotState
 
@@ -28,7 +28,7 @@ def setup_checkpoint():
 chatbot_builder = StateGraph(ChatBotState)
 
 chatbot_builder.add_node("query", query_node)
-chatbot_builder.add_node("tools", tool_node)
+chatbot_builder.add_node("tools", contextual_tool_node)
 
 chatbot_builder.add_edge(START, "query")
 chatbot_builder.add_edge("query", "tools")

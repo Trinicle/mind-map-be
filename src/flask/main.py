@@ -412,7 +412,7 @@ def handle_get_conversation_history(conversation_id: str):
         config = {"configurable": {"thread_id": conversation_id}}
 
         state = checkpoint.get(config)
-        messages = state.values["messages"]
+        messages = state.get("channel_values", {}).get("messages", [])
 
         history = [
             ChatMessageResponse(
@@ -421,8 +421,9 @@ def handle_get_conversation_history(conversation_id: str):
                 ),
                 type=msg.type,
                 id=msg.id,
-            )
+            ).model_dump()
             for msg in messages[-10:]
+            if msg.type != "tool" and msg.type != "system"
         ]
 
         return (
@@ -451,25 +452,36 @@ def handle_send_message():
 
         user_id = client.auth.get_user(auth_token).user.id
 
-        config = {"configurable": {"thread_id": chat_request.conversation_id}}
-        existing_state = checkpoint.get(config)
-        is_new_conversation = not existing_state or not existing_state.values.get(
-            "messages"
-        )
-
+        read_config = {"configurable": {"thread_id": chat_request.conversation_id}}
+        write_config = {
+            "configurable": {
+                "thread_id": chat_request.conversation_id,
+                "checkpoint_ns": "",
+            }
+        }
+        existing_state = checkpoint.get(read_config)
+        is_new_conversation = not existing_state or not existing_state.get(
+            "channel_values", {}
+        ).get("messages", [])
         messages = []
 
+        query = chat_request.message
+        context = conversation.transcript_id if conversation.transcript_id else ""
         if is_new_conversation:
-            context = conversation.transcript_id if conversation.transcript_id else ""
-            query = chat_request.message
-
             messages.append(SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM))
             new_message = HumanMessage(
-                content=ChatBotPrompts.chatbot_prompt(query, context)
+                content=query,
+                additional_kwargs={"transcript_id": context} if context else {},
             )
             messages.append(new_message)
         else:
-            messages.append(HumanMessage(content=ChatBotPrompts.chatbot_prompt(query)))
+            messages = existing_state.get("channel_values", {}).get("messages", [])
+            messages.append(
+                HumanMessage(
+                    content=query,
+                    additional_kwargs={"transcript_id": context} if context else {},
+                )
+            )
 
         initial_state = ChatBotState(
             messages=messages,
@@ -477,39 +489,31 @@ def handle_send_message():
             transcript_id=conversation.transcript_id,
         )
 
-        result = chatbot.invoke(initial_state, config=config)
-        type = result["messages"][-1].type
-        id = result["messages"][-1].id
+        result = chatbot.invoke(initial_state, config=write_config)
+        sent_message_content = result["messages"][-2].content
+        sent_message_type = result["messages"][-2].type
+        sent_message_id = result["messages"][-2].id
+        response_message_content = result["messages"][-1].content
+        response_message_type = result["messages"][-1].type
+        response_message_id = result["messages"][-1].id
 
-        print(result["messages"])
-
-        ai_response = (
-            result["messages"][-1].content
-            if result["messages"]
-            else "I'm sorry, I couldn't process your request."
+        sent_message = ChatMessageResponse(
+            message=sent_message_content,
+            type=sent_message_type,
+            id=sent_message_id,
         )
 
-        # Ensure ai_response is always a string
-        if isinstance(ai_response, list):
-            ai_response = (
-                str(ai_response)
-                if ai_response
-                else "I'm sorry, I couldn't process your request."
-            )
-        elif not isinstance(ai_response, str):
-            ai_response = str(ai_response)
-
-        chat_message = ChatMessageResponse(
-            message=ai_response,
-            type=type,
-            id=id,
+        response_message = ChatMessageResponse(
+            message=response_message_content,
+            type=response_message_type,
+            id=response_message_id,
         )
 
         return (
             jsonify(
                 {
                     "message": "Chat processed successfully",
-                    "data": chat_message.model_dump(),
+                    "data": [sent_message.model_dump(), response_message.model_dump()],
                 }
             ),
             200,

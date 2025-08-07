@@ -88,18 +88,14 @@ class MindMapPrompts:
 
 class ChatBotPrompts:
     CHATBOT_SYSTEM = """
-    You are a helpful assistant that can answer relevant questions about a transcript.
+    You are a helpful assistant that can answer questions. 
+    	- Questions may be about the transcript or about the meeting.
+        - If the question is about the transcript or meeting, use a transcript specific tool to answer the question.
+        - Otherwise, use your general knowledge to answer the question or tool if applicable.
+        
+    Instructions for handling queries:
+        - Use any of the necessary tools supplied to answer the query if needed.
+        - For transcript-related questions:
+            * Use query_transcript - automatically searches the current transcript if context is available, otherwise searches all user transcripts
+        - For general internet searches, use the query_internet tool.
     """
-
-    @staticmethod
-    def chatbot_prompt(query: str, context: str = None):
-        if context:
-            return f"""
-			Here is the relevant transcript id to query off of {context}.
-            Given this query {query} and the relevant transcript id, if supplied, use any of the necessary tools supplied to answer the query.
-            Prefer to use the query_transcript tool as it is more likely to be relevant to the query.
-            """
-        return f"""
-		Here is the query: {query}
-		Use any of the necessary tools supplied to answer the query if needed. 
-        """

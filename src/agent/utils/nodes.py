@@ -14,7 +14,7 @@ from src.agent.utils.prompts import ChatBotPrompts, MindMapPrompts
 from src.agent.utils.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-5-mini", temperature=1)
 llm_with_tools = llm.bind_tools(tools)
 
 CHUNK_SIZE = 1500
@@ -144,20 +144,21 @@ def identify_topics_node(state: TranscriptState):
     return {"topics": list(topics_dict.values())}
 
 
-def initial_conversation_node(state: ChatBotState):
-    messages = [
-        SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM),
-        HumanMessage(
-            content=ChatBotPrompts.chatbot_prompt(
-                state.transcript_id, state.messages[-1].content
-            )
-        ),
-    ]
-    return {"messages": [llm_with_tools.invoke(messages)]}
-
-
 def query_node(state: ChatBotState):
-    return {"messages": [llm_with_tools.invoke(state.messages)]}
+    config = {
+        "configurable": {},
+        "metadata": {"user_id": state.user_id, "transcript_id": state.transcript_id},
+    }
+    print(f"Query node config: {config}")
+    return {"messages": [llm_with_tools.invoke(state.messages, config=config)]}
 
 
-tool_node = ToolNode(tools)
+def contextual_tool_node(state: ChatBotState):
+    """Tool node that passes context through config metadata"""
+    config = {
+        "configurable": {},
+        "metadata": {"user_id": state.user_id, "transcript_id": state.transcript_id},
+    }
+    print(f"Tool node config: {config}")
+    tool_executor = ToolNode(tools)
+    return tool_executor.invoke(state, config=config)
