@@ -5,8 +5,8 @@ from flask import Flask, Request, request, jsonify
 from gotrue import Session
 from src.agent.utils.graph import transcript_graph
 from src.agent.utils.state import TranscriptState, ChatBotState
-from src.agent.utils.chatbot import chatbot, checkpoint
-from langchain_core.messages import HumanMessage
+from src.agent.utils.chatbot import chatbot, checkpoint, setup_checkpoint
+from langchain_core.messages import HumanMessage, SystemMessage
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.models.topic_models import Topic
 from src.flask.supabase.auth import (
@@ -20,7 +20,7 @@ from flask_cors import CORS
 from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 
-from src.flask.supabase.client import get_client
+from src.flask.supabase.client import get_auth_token, get_client
 from src.flask.supabase.content import insert_content_async
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
@@ -44,7 +44,12 @@ from src.flask.supabase.conversation import (
     get_user_conversations,
     update_conversation_title,
 )
-from src.flask.models.conversation_models import ConversationCreateRequest, ChatMessage
+from src.flask.models.conversation_models import (
+    ChatMessageResponse,
+    ConversationCreateRequest,
+    ChatMessage,
+)
+from src.agent.utils.prompts import ChatBotPrompts
 
 UPLOAD_FOLDER = "uploads"
 
@@ -362,7 +367,7 @@ def handle_transcript_get_detail(mindmap_id: str):
 
 
 @app.route("/conversations", methods=["POST"])
-def handle_create_initial_conversation():
+def handle_create_conversation():
     """Create a new conversation"""
     try:
         data = request.json or {}
@@ -406,29 +411,22 @@ def handle_get_conversation_history(conversation_id: str):
 
         config = {"configurable": {"thread_id": conversation_id}}
 
-        history = []
-        try:
-            state = checkpoint.get(config)
-            if state and "messages" in state.values:
-                messages = state.values["messages"]
-                recent_messages = messages[-10:] if len(messages) > 10 else messages
+        state = checkpoint.get(config)
+        messages = state.values["messages"]
 
-                for msg in recent_messages:
-                    history.append(
-                        {
-                            "type": msg.__class__.__name__.lower().replace(
-                                "message", ""
-                            ),
-                            "content": msg.content,
-                            "timestamp": getattr(msg, "timestamp", None),
-                        }
-                    )
-        except Exception as e:
-            print(f"Error getting conversation history: {e}")
-            pass
+        history = [
+            ChatMessageResponse(
+                message=(
+                    msg.content if isinstance(msg.content, str) else str(msg.content)
+                ),
+                type=msg.type,
+                id=msg.id,
+            )
+            for msg in messages[-10:]
+        ]
 
         return (
-            jsonify({"data": {"conversation_id": conversation_id, "history": history}}),
+            jsonify({"message": "Conversation history found", "data": history}),
             200,
         )
 
@@ -449,18 +447,41 @@ def handle_send_message():
             return jsonify({"message": "Conversation not found"}), 404
 
         client = get_client(request)
-        user_id = client.auth.get_user().id
+        auth_token = get_auth_token(request)
 
-        initial_state = ChatBotState(
-            messages=[HumanMessage(content=chat_request.message)],
-            user_id=user_id,
-            transcript_id=chat_request.transcript_id or conversation.transcript_id,
-        )
+        user_id = client.auth.get_user(auth_token).user.id
 
         config = {"configurable": {"thread_id": chat_request.conversation_id}}
+        existing_state = checkpoint.get(config)
+        is_new_conversation = not existing_state or not existing_state.values.get(
+            "messages"
+        )
+
+        messages = []
+
+        if is_new_conversation:
+            context = conversation.transcript_id if conversation.transcript_id else ""
+            query = chat_request.message
+
+            messages.append(SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM))
+            new_message = HumanMessage(
+                content=ChatBotPrompts.chatbot_prompt(query, context)
+            )
+            messages.append(new_message)
+        else:
+            messages.append(HumanMessage(content=ChatBotPrompts.chatbot_prompt(query)))
+
+        initial_state = ChatBotState(
+            messages=messages,
+            user_id=user_id,
+            transcript_id=conversation.transcript_id,
+        )
 
         result = chatbot.invoke(initial_state, config=config)
-        ai_message = result["messages"][-1].content
+        type = result["messages"][-1].type
+        id = result["messages"][-1].id
+
+        print(result["messages"])
 
         ai_response = (
             result["messages"][-1].content
@@ -468,13 +489,27 @@ def handle_send_message():
             else "I'm sorry, I couldn't process your request."
         )
 
+        # Ensure ai_response is always a string
+        if isinstance(ai_response, list):
+            ai_response = (
+                str(ai_response)
+                if ai_response
+                else "I'm sorry, I couldn't process your request."
+            )
+        elif not isinstance(ai_response, str):
+            ai_response = str(ai_response)
+
+        chat_message = ChatMessageResponse(
+            message=ai_response,
+            type=type,
+            id=id,
+        )
+
         return (
             jsonify(
                 {
                     "message": "Chat processed successfully",
-                    "data": {
-                        "response": ai_response,
-                    },
+                    "data": chat_message.model_dump(),
                 }
             ),
             200,

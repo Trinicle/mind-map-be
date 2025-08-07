@@ -48,7 +48,6 @@ def query_transcript(query: str, user_id: str) -> List[Document]:
     Returns:
         List[Document]: The results of the search.
     """
-
     return vectorstore.similarity_search(query, k=5, filter={"user_id": user_id})
 
 

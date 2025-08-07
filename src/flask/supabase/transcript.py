@@ -4,7 +4,7 @@ from flask import Request
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
-from .client import get_client
+from .client import get_auth_token, get_client
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 
@@ -50,7 +50,8 @@ def insert_transcript(request: Request, text: str) -> Transcript:
 def insert_transcript_as_vector(request: Request, text: str, transcript_id: str):
     chunks = _chunk_transcript(text)
     client = get_client(request)
-    user_id = client.auth.get_user().id
+    auth_token = get_auth_token(request)
+    user_id = client.auth.get_user(auth_token).user.id
 
     metadata = {
         "transcript_id": transcript_id,

@@ -92,14 +92,14 @@ class ChatBotPrompts:
     """
 
     @staticmethod
-    def chatbot_prompt(context: str, query: str):
+    def chatbot_prompt(query: str, context: str = None):
         if context:
             return f"""
 			Here is the relevant transcript id to query off of {context}.
-            Given this query {query} and the relevant transcript id, use any of the necessary tools supplied to answer the query.
+            Given this query {query} and the relevant transcript id, if supplied, use any of the necessary tools supplied to answer the query.
             Prefer to use the query_transcript tool as it is more likely to be relevant to the query.
             """
         return f"""
 		Here is the query: {query}
-		Use any of the necessary tools supplied to answer the query. 
+		Use any of the necessary tools supplied to answer the query if needed. 
         """

@@ -14,10 +14,14 @@ class Conversation(BaseModel):
 
 class ConversationCreateRequest(BaseModel):
     transcript_id: Optional[str] = None
-    initial_message: str
 
 
 class ChatMessage(BaseModel):
     conversation_id: str
     message: str
-    transcript_id: Optional[str] = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    message: str
+    type: str

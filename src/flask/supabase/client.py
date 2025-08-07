@@ -76,3 +76,10 @@ def get_async_client_from_auth_token(auth_token: str) -> AsyncClient:
 
     options = ClientOptions(headers={"Authorization": auth_token})
     return acreate_client(url, key, options)
+
+
+def get_auth_token(request: Request) -> str:
+    """
+    Get the auth token from the request.
+    """
+    return request.headers["Authorization"].replace("Bearer ", "")

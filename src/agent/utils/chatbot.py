@@ -16,6 +16,15 @@ connection = ConnectionPool(
 )
 checkpoint = PostgresSaver(connection)
 
+
+def setup_checkpoint():
+    try:
+        checkpoint.setup()
+    except Exception as e:
+        print(f"Checkpoint setup failed: {e}")
+        pass
+
+
 chatbot_builder = StateGraph(ChatBotState)
 
 chatbot_builder.add_node("query", query_node)
