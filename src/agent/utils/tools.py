@@ -1,6 +1,7 @@
 import os
 from typing import List
 from langchain_core.embeddings import Embeddings
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -48,6 +49,16 @@ def get_messages_vectorstore():
 # Backward compatibility
 vectorstore = get_vectorstore()
 messages_vectorstore = get_messages_vectorstore()
+
+
+def create_title(query: str) -> str:
+    messages = [
+        SystemMessage(
+            content="You are a helpful assistant that creates titles for conversations. For a given query, create a short descriptive title in under 5 words. If you cannot, default to 'New Conversation'."
+        ),
+        HumanMessage(content=query),
+    ]
+    return llm.invoke(messages).content
 
 
 @tool(parse_docstring=True)

@@ -14,6 +14,7 @@ class Conversation(BaseModel):
 
 class ConversationCreateRequest(BaseModel):
     transcript_id: Optional[str] = None
+    query: str
 
 
 class ChatMessage(BaseModel):

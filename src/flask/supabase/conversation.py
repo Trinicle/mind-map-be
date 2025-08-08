@@ -1,17 +1,17 @@
 from typing import List, Optional
 from flask import Request
+from src.agent.utils.tools import create_title
 from src.flask.models.conversation_models import Conversation
 from .client import get_client
 
 
 def create_conversation(
-    request: Request, transcript_id: Optional[str] = None, title: Optional[str] = None
+    request: Request,
+    query: str,
+    transcript_id: Optional[str] = None,
 ) -> Conversation:
     """Create a new conversation for the current user."""
-    data = {
-        "transcript_id": transcript_id,
-        "title": title or "New Conversation",
-    }
+    data = {"transcript_id": transcript_id, "title": create_title(query)}
 
     try:
         client = get_client(request)

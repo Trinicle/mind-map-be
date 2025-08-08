@@ -377,7 +377,9 @@ def handle_create_conversation():
         data = request.json or {}
         conversation_request = ConversationCreateRequest(**data)
 
-        conversation = create_conversation(request, conversation_request.transcript_id)
+        conversation = create_conversation(
+            request, conversation_request.query, conversation_request.transcript_id
+        )
 
         return (
             jsonify(
