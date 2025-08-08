@@ -14,7 +14,7 @@ from src.agent.utils.prompts import ChatBotPrompts, MindMapPrompts
 from src.agent.utils.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-5-mini", temperature=1)
+llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=500)
 llm_with_tools = llm.bind_tools(tools)
 
 CHUNK_SIZE = 1500

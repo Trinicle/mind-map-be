@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-llm = ChatOpenAI(model="gpt-5-mini", temperature=1)
+title_llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=50)
 
 
 @contextmanager
@@ -72,7 +72,7 @@ def create_title(query: str) -> str:
         ),
         HumanMessage(content=query),
     ]
-    return llm.invoke(messages).content
+    return title_llm.invoke(messages).content
 
 
 @tool(parse_docstring=True)
