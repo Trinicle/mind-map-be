@@ -28,4 +28,5 @@ class TranscriptState(BaseModel):
 class ChatBotState(BaseModel):
     messages: Annotated[list[BaseMessage], add_messages]
     user_id: str
+    conversation_id: str
     transcript_id: Optional[str] = None

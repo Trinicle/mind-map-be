@@ -147,10 +147,26 @@ def identify_topics_node(state: TranscriptState):
 def query_node(state: ChatBotState):
     config = {
         "configurable": {},
-        "metadata": {"user_id": state.user_id, "transcript_id": state.transcript_id},
+        "metadata": {
+            "user_id": state.user_id,
+            "transcript_id": state.transcript_id,
+            "conversation_id": state.conversation_id,
+        },
     }
     print(f"Query node config: {config}")
-    return {"messages": [llm_with_tools.invoke(state.messages, config=config)]}
+
+    WINDOW_MESSAGE_COUNT = 8
+    history_messages = [
+        msg
+        for msg in state.messages
+        if getattr(msg, "type", "") not in ("system", "tool")
+    ]
+    window_history = history_messages[-WINDOW_MESSAGE_COUNT:]
+
+    llm_messages = [SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM)]
+    llm_messages.extend(window_history)
+
+    return {"messages": [llm_with_tools.invoke(llm_messages, config=config)]}
 
 
 def contextual_tool_node(state: ChatBotState):
@@ -162,3 +178,32 @@ def contextual_tool_node(state: ChatBotState):
     print(f"Tool node config: {config}")
     tool_executor = ToolNode(tools)
     return tool_executor.invoke(state, config=config)
+
+
+def response_node(state: ChatBotState):
+    """Process tool results and generate final AI response"""
+    config = {
+        "configurable": {},
+        "metadata": {
+            "user_id": state.user_id,
+            "transcript_id": state.transcript_id,
+            "conversation_id": state.conversation_id,
+        },
+    }
+
+    tool_messages = [
+        msg for msg in state.messages if getattr(msg, "type", "") == "tool"
+    ]
+
+    if not tool_messages:
+        return {"messages": []}
+
+    synthesis_prompt = SystemMessage(
+        content="""You are a helpful assistant. Based on the tool results and conversation history, 
+        provide a clear, helpful response to the user. Synthesize the information from the tools 
+        into a natural, conversational response."""
+    )
+
+    context_messages = [synthesis_prompt] + state.messages
+
+    return {"messages": [llm.invoke(context_messages, config=config)]}

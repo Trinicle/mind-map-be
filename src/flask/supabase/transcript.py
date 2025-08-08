@@ -5,21 +5,12 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
 from .client import get_auth_token, get_client
-from langchain_openai import OpenAIEmbeddings
-from langchain_postgres import PGVector
+from src.agent.utils.tools import get_vectorstore
 
 load_dotenv()
 
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
-
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-vectorstore = PGVector(
-    connection=os.getenv("DATABASE_URL"),
-    embeddings=embeddings,
-    collection_name="Transcript_Vector",
-    use_jsonb=True,
-)
 
 
 def insert_transcript(request: Request, text: str) -> Transcript:
@@ -58,6 +49,7 @@ def insert_transcript_as_vector(request: Request, text: str, transcript_id: str)
         "user_id": user_id,
     }
 
+    vectorstore = get_vectorstore()
     vectorstore.add_texts(chunks, metadatas=[metadata] * len(chunks))
 
 

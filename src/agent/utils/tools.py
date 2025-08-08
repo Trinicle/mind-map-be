@@ -13,12 +13,41 @@ from dotenv import load_dotenv
 load_dotenv()
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 llm = ChatOpenAI(model="gpt-5-mini", temperature=1)
-vectorstore = PGVector(
-    connection=os.getenv("DATABASE_URL"),
-    embeddings=embeddings,
-    collection_name="Transcript_Vector",
-    use_jsonb=True,
-)
+
+# Use connection string for vector stores (PGVector doesn't support ConnectionPool)
+_vectorstore = None
+_messages_vectorstore = None
+
+
+def get_vectorstore():
+    """Get or create shared transcript vectorstore instance."""
+    global _vectorstore
+    if _vectorstore is None:
+        _vectorstore = PGVector(
+            connection=os.getenv("DATABASE_URL"),
+            embeddings=embeddings,
+            collection_name="Transcript_Vector",
+            use_jsonb=True,
+        )
+    return _vectorstore
+
+
+def get_messages_vectorstore():
+    """Get or create shared messages vectorstore instance."""
+    global _messages_vectorstore
+    if _messages_vectorstore is None:
+        _messages_vectorstore = PGVector(
+            connection=os.getenv("DATABASE_URL"),
+            embeddings=embeddings,
+            collection_name="Message_Vector",
+            use_jsonb=True,
+        )
+    return _messages_vectorstore
+
+
+# Backward compatibility
+vectorstore = get_vectorstore()
+messages_vectorstore = get_messages_vectorstore()
 
 
 @tool(parse_docstring=True)
@@ -76,4 +105,36 @@ def query_transcripts(query: str) -> List[Document]:
         return []
 
 
-tools = [query_internet, query_transcripts]
+@tool(parse_docstring=True)
+def query_messages(query: str) -> List[Document]:
+    """Retrieve semantically relevant prior chat messages for additional context.
+
+    Uses conversation_id if provided; otherwise falls back to user scope.
+
+    Args:
+        query: The query to match against prior messages.
+
+    Returns:
+        List[Document]: Relevant message snippets ordered by similarity.
+    """
+    try:
+        config = ensure_config()
+        metadata = config.get("metadata", {})
+        user_id = metadata.get("user_id")
+        conversation_id = metadata.get("conversation_id")
+
+        if not user_id:
+            raise ValueError("user_id not found in config metadata")
+
+        filter_dict = {"user_id": user_id}
+        if conversation_id:
+            filter_dict["conversation_id"] = conversation_id
+
+        search = messages_vectorstore.similarity_search(query, k=5, filter=filter_dict)
+        return search
+    except Exception as e:
+        print(f"Error in query_messages: {e}")
+        return []
+
+
+tools = [query_internet, query_transcripts, query_messages]
