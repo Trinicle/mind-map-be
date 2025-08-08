@@ -1,5 +1,6 @@
 import os
 from typing import List
+from contextlib import contextmanager
 from langchain_core.embeddings import Embeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
@@ -15,46 +16,59 @@ load_dotenv()
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 llm = ChatOpenAI(model="gpt-5-mini", temperature=1)
 
-# Use connection string for vector stores (PGVector doesn't support ConnectionPool)
-_vectorstore = None
-_messages_vectorstore = None
 
-
+@contextmanager
 def get_vectorstore():
-    """Get or create shared transcript vectorstore instance."""
-    global _vectorstore
-    if _vectorstore is None:
-        _vectorstore = PGVector(
+    """Create a per-request transcript vectorstore connection with automatic cleanup."""
+    vectorstore = None
+    try:
+        vectorstore = PGVector(
             connection=os.getenv("DATABASE_URL"),
             embeddings=embeddings,
             collection_name="Transcript_Vector",
             use_jsonb=True,
         )
-    return _vectorstore
+        yield vectorstore
+    finally:
+        if (
+            vectorstore
+            and hasattr(vectorstore, "_connection")
+            and vectorstore._connection
+        ):
+            try:
+                vectorstore._connection.close()
+            except Exception as e:
+                print(f"Warning: Error closing vectorstore connection: {e}")
 
 
+@contextmanager
 def get_messages_vectorstore():
-    """Get or create shared messages vectorstore instance."""
-    global _messages_vectorstore
-    if _messages_vectorstore is None:
-        _messages_vectorstore = PGVector(
+    """Create a per-request messages vectorstore connection with automatic cleanup."""
+    vectorstore = None
+    try:
+        vectorstore = PGVector(
             connection=os.getenv("DATABASE_URL"),
             embeddings=embeddings,
             collection_name="Message_Vector",
             use_jsonb=True,
         )
-    return _messages_vectorstore
-
-
-# Backward compatibility
-vectorstore = get_vectorstore()
-messages_vectorstore = get_messages_vectorstore()
+        yield vectorstore
+    finally:
+        if (
+            vectorstore
+            and hasattr(vectorstore, "_connection")
+            and vectorstore._connection
+        ):
+            try:
+                vectorstore._connection.close()
+            except Exception as e:
+                print(f"Warning: Error closing messages vectorstore connection: {e}")
 
 
 def create_title(query: str) -> str:
     messages = [
         SystemMessage(
-            content="You are a helpful assistant that creates titles for conversations. For a given query, create a short descriptive title in under 5 words. If you cannot, default to 'New Conversation'."
+            content="You are a helpful assistant that creates titles for conversations. For a given query, create a short broad title in under 5 words. If you cannot, default to 'New Conversation'."
         ),
         HumanMessage(content=query),
     ]
@@ -97,19 +111,22 @@ def query_transcripts(query: str) -> List[Document]:
         if not user_id:
             raise ValueError("user_id not found in config metadata")
 
-        if transcript_id:
-            print(f"Searching within specific transcript: {transcript_id}")
-            search = vectorstore.similarity_search(
-                query, k=5, filter={"user_id": user_id, "transcript_id": transcript_id}
-            )
-        else:
-            print("Searching across all user transcripts")
-            search = vectorstore.similarity_search(
-                query, k=5, filter={"user_id": user_id}
-            )
+        with get_vectorstore() as vectorstore:
+            if transcript_id:
+                print(f"Searching within specific transcript: {transcript_id}")
+                search = vectorstore.similarity_search(
+                    query,
+                    k=5,
+                    filter={"user_id": user_id, "transcript_id": transcript_id},
+                )
+            else:
+                print("Searching across all user transcripts")
+                search = vectorstore.similarity_search(
+                    query, k=5, filter={"user_id": user_id}
+                )
 
-        print(search)
-        return search
+            print(search)
+            return search
     except Exception as e:
         print(f"Error in query_transcripts: {e}")
         # Fallback: return empty results if config issues
@@ -118,8 +135,7 @@ def query_transcripts(query: str) -> List[Document]:
 
 @tool(parse_docstring=True)
 def query_messages(query: str) -> List[Document]:
-    """Retrieve semantically relevant prior chat messages for additional context.
-
+    """Retrieve semantically relevant prior chat messages for additional context
     Uses conversation_id if provided; otherwise falls back to user scope.
 
     Args:
@@ -141,8 +157,11 @@ def query_messages(query: str) -> List[Document]:
         if conversation_id:
             filter_dict["conversation_id"] = conversation_id
 
-        search = messages_vectorstore.similarity_search(query, k=5, filter=filter_dict)
-        return search
+        with get_messages_vectorstore() as messages_vectorstore:
+            search = messages_vectorstore.similarity_search(
+                query, k=5, filter=filter_dict
+            )
+            return search
     except Exception as e:
         print(f"Error in query_messages: {e}")
         return []

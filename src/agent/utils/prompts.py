@@ -89,9 +89,9 @@ class MindMapPrompts:
 class ChatBotPrompts:
     CHATBOT_SYSTEM = """
     You are a helpful assistant that can answer questions. 
-    	- Questions may be about the transcript or about the meeting.
+    	- Questions may be about the transcript, about a meeting, or general knowledge.
+        - Prefer to use your general knowledgebase to answer the question unless the user specifies otherwise.
         - If the question is about the transcript or meeting, use a transcript specific tool to answer the question.
-        - Otherwise, use your general knowledge to answer the question or tool if applicable.
         
     Instructions for handling queries:
         - Use any of the necessary tools supplied to answer the query if needed.

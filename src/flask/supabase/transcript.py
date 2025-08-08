@@ -49,8 +49,8 @@ def insert_transcript_as_vector(request: Request, text: str, transcript_id: str)
         "user_id": user_id,
     }
 
-    vectorstore = get_vectorstore()
-    vectorstore.add_texts(chunks, metadatas=[metadata] * len(chunks))
+    with get_vectorstore() as vectorstore:
+        vectorstore.add_texts(chunks, metadatas=[metadata] * len(chunks))
 
 
 def _chunk_transcript(text: str) -> List[str]:

@@ -9,14 +9,14 @@ from src.agent.utils.nodes import (
 from src.agent.utils.state import ChatBotState
 
 
-def initialize_checkpoint():
-    """Legacy function - now returns shared checkpoint instance."""
-    return get_checkpoint()
+def initialize_chatbot(checkpoint):
+    """Initialize chatbot with a checkpoint instance.
 
-
-def initialize_chatbot(checkpoint=None):
+    Args:
+        checkpoint: PostgresSaver instance (required).
+    """
     if checkpoint is None:
-        checkpoint = get_checkpoint()
+        raise ValueError("checkpoint parameter is required for initialize_chatbot()")
 
     chatbot_builder = StateGraph(ChatBotState)
 

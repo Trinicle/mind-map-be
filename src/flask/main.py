@@ -7,7 +7,7 @@ from gotrue import Session
 from src.agent.utils.graph import transcript_graph
 from src.agent.utils.state import TranscriptState, ChatBotState
 from src.agent.utils.chatbot import initialize_chatbot
-from src.agent.utils.connection import get_checkpoint, close_connection_pool
+from src.agent.utils.connection import get_checkpoint
 from langchain_core.messages import HumanMessage
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.models.topic_models import Topic
@@ -65,9 +65,6 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "PUT", "POST", "DELETE", "OPTIONS"],
 )
-
-# Register cleanup function to close connection pools on app shutdown
-atexit.register(close_connection_pool)
 
 
 def serialize_auth_response(response: AuthResponse):
@@ -417,9 +414,9 @@ def handle_get_conversation_history(conversation_id: str):
 
         config = {"configurable": {"thread_id": conversation_id}}
 
-        checkpoint = get_checkpoint()
-        state = checkpoint.get(config)
-        messages = state.get("channel_values", {}).get("messages", [])
+        with get_checkpoint() as checkpoint:
+            state = checkpoint.get(config)
+            messages = state.get("channel_values", {}).get("messages", [])
 
         history = [
             ChatMessageResponse(
@@ -466,39 +463,41 @@ def handle_send_message():
                 "checkpoint_ns": "",
             }
         }
-        checkpoint = get_checkpoint()
-        existing_state = checkpoint.get(read_config)
-        is_new_conversation = not existing_state or not existing_state.get(
-            "channel_values", {}
-        ).get("messages", [])
-        messages = []
 
-        query = chat_request.message
-        context = conversation.transcript_id if conversation.transcript_id else ""
-        if is_new_conversation:
-            new_message = HumanMessage(
-                content=query,
-                additional_kwargs={"transcript_id": context} if context else {},
-            )
-            messages.append(new_message)
-        else:
-            messages = existing_state.get("channel_values", {}).get("messages", [])
-            messages.append(
-                HumanMessage(
+        with get_checkpoint() as checkpoint:
+            existing_state = checkpoint.get(read_config)
+            is_new_conversation = not existing_state or not existing_state.get(
+                "channel_values", {}
+            ).get("messages", [])
+            messages = []
+
+            query = chat_request.message
+            context = conversation.transcript_id if conversation.transcript_id else ""
+            if is_new_conversation:
+                new_message = HumanMessage(
                     content=query,
                     additional_kwargs={"transcript_id": context} if context else {},
                 )
+                messages.append(new_message)
+            else:
+                messages = existing_state.get("channel_values", {}).get("messages", [])
+                messages.append(
+                    HumanMessage(
+                        content=query,
+                        additional_kwargs={"transcript_id": context} if context else {},
+                    )
+                )
+
+            initial_state = ChatBotState(
+                messages=messages,
+                user_id=user_id,
+                conversation_id=chat_request.conversation_id,
+                transcript_id=conversation.transcript_id,
             )
+            chatbot = initialize_chatbot(checkpoint)
 
-        initial_state = ChatBotState(
-            messages=messages,
-            user_id=user_id,
-            conversation_id=chat_request.conversation_id,
-            transcript_id=conversation.transcript_id,
-        )
-        chatbot = initialize_chatbot(checkpoint)
+            result = chatbot.invoke(initial_state, config=write_config)
 
-        result = chatbot.invoke(initial_state, config=write_config)
         print(result)
         sent_message_content = result["messages"][-2].content
         sent_message_type = result["messages"][-2].type
@@ -542,10 +541,10 @@ def handle_send_message():
                 if t is not None and isinstance(t, str)
             ]
             if cleaned:
-                messages_vectorstore = get_messages_vectorstore()
-                messages_vectorstore.add_texts(
-                    [t for t, _ in cleaned], metadatas=[m for _, m in cleaned]
-                )
+                with get_messages_vectorstore() as messages_vectorstore:
+                    messages_vectorstore.add_texts(
+                        [t for t, _ in cleaned], metadatas=[m for _, m in cleaned]
+                    )
         except Exception as e:
             print(f"Warning: failed to index messages to vector store: {e}")
 
