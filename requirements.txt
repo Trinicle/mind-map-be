@@ -1,5 +1,7 @@
 openai
 flask
+flask-cors
+flask[async]
 langchain
 langchain_core
 langchain_openai
@@ -8,7 +10,6 @@ langchain_postgres
 langchain_redis
 langgraph
 supabase
-flask-cors
 unstructured
 dotenv
 langchain_tavily

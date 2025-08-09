@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Request
 
 from src.flask.models.mindmap_models import MindMap, MindMapResponse
-from .client import get_client
+from .client import get_async_client, get_client
 
 
 def insert_mindmap(
@@ -19,7 +19,6 @@ def insert_mindmap(
     """
     client = get_client(request)
 
-    # Convert ISO string to datetime
     parsed_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
 
     data = {
@@ -31,6 +30,40 @@ def insert_mindmap(
     }
 
     result = client.table("MindMap").insert(data).execute()
+    data = result.data[0] if result.data else None
+
+    return MindMap(
+        id=data["id"],
+        user_id=data["user_id"],
+        title=data["title"],
+        participants=data["participants"],
+        description=data["description"],
+        tags=data["tags"],
+        created_at=data["created_at"],
+        date=data["date"],
+    )
+
+
+async def insert_mindmap_async(
+    request: Request,
+    title: str,
+    description: str,
+    date: str,
+    participants: List[str] = [],
+    transcript_id: str = None,
+) -> MindMap:
+    parsed_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
+
+    data = {
+        "title": title,
+        "description": description,
+        "date": parsed_date.isoformat(),
+        "participants": participants,
+        "transcript_id": transcript_id,
+    }
+
+    client = await get_async_client(request)
+    result = await client.table("MindMap").insert(data).execute()
     data = result.data[0] if result.data else None
 
     return MindMap(

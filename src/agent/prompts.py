@@ -1,6 +1,3 @@
-from langchain_core.prompts import PromptTemplate
-
-
 class MindMapPrompts:
     """
     Class for developing prompts for the agent.

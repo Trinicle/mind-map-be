@@ -18,7 +18,7 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 
 @contextmanager
-def get_vectorstore():
+def get_vectorstore_context():
     """Create a per-request transcript vectorstore connection with automatic cleanup."""
     vectorstore = None
     try:
@@ -39,6 +39,15 @@ def get_vectorstore():
                 vectorstore._connection.close()
             except Exception as e:
                 print(f"Warning: Error closing vectorstore connection: {e}")
+
+
+def get_vectorstore():
+    return PGVector(
+        connection=os.getenv("DATABASE_URL"),
+        embeddings=embeddings,
+        collection_name="Transcript_Vector",
+        use_jsonb=True,
+    )
 
 
 @contextmanager
@@ -102,7 +111,7 @@ def get_redis_client():
 
 
 @contextmanager
-def get_redis_history(conversation_id: str):
+def get_redis_history_context(conversation_id: str):
     """Create a per-request Redis client connection with automatic cleanup."""
     redis_client = None
     try:
@@ -114,3 +123,10 @@ def get_redis_history(conversation_id: str):
     finally:
         if redis_client:
             redis_client.close()
+
+
+def get_redis_history(conversation_id: str):
+    redis_client = Redis(host=os.getenv("REDIS_HOST"), port=os.getenv("REDIS_PORT"))
+    return RedisChatMessageHistory(
+        session_id=conversation_id, redis_client=redis_client
+    )

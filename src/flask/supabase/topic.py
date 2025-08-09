@@ -1,6 +1,9 @@
+import asyncio
 from flask import Request
+from src.agent.state import ContentState, TopicState
 from src.flask.models.topic_models import Topic
 from src.flask.supabase.client import get_client, get_async_client
+from src.flask.supabase.content import insert_content_async
 
 
 def get_topics(request: Request, mindmap_id: str) -> list[Topic]:
@@ -74,3 +77,24 @@ async def insert_topic_async(
         created_at=data["created_at"],
         connected_topics=data["connected_topics"],
     )
+
+
+async def insert_topic_with_content_async(
+    request: Request,
+    topic_data: TopicState,
+    connected_topics: list[str],
+    mindmap_id: str,
+    contents: list[ContentState],
+):
+    tasks = []
+    topic = await insert_topic_async(
+        request, topic_data.title, connected_topics, mindmap_id
+    )
+
+    for content in contents:
+        task = insert_content_async(request, content.text, content.speaker, topic.id)
+        tasks.append(task)
+
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    return topic

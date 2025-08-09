@@ -1,18 +1,12 @@
-import os
-from typing import List
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from langchain_openai import ChatOpenAI
-from langchain_core.documents import Document
-from langchain_core.runnables import ensure_config
 from dotenv import load_dotenv
-
-from src.agent.connection import get_messages_vectorstore, get_vectorstore
 
 
 load_dotenv()
-title_llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=50)
+title_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=1, max_completion_tokens=50)
 
 
 def create_title(query: str) -> str:
@@ -27,7 +21,7 @@ def create_title(query: str) -> str:
 
 @tool(parse_docstring=True)
 def query_internet(query: str):
-    """Search the internet for the query.
+    """Search the internet to answer the query.
 
     Args:
         query: The query to search the internet for.

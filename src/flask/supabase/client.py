@@ -34,7 +34,7 @@ def get_client(request: Request = None) -> Client:
     return create_client(url, key, options)
 
 
-def get_async_client(request: Request = None) -> AsyncClient:
+async def get_async_client(request: Request = None) -> AsyncClient:
     """
     Create an async Supabase client for the current request.
     """
@@ -45,7 +45,7 @@ def get_async_client(request: Request = None) -> AsyncClient:
         auth_token = request.headers["Authorization"].replace("Bearer ", "")
         options = ClientOptions(headers={"Authorization": f"Bearer {auth_token}"})
 
-    return acreate_client(url, key, options)
+    return await acreate_client(url, key, options)
 
 
 def get_client_from_auth_token(auth_token: str) -> Client:
@@ -64,7 +64,7 @@ def get_client_from_auth_token(auth_token: str) -> Client:
     return create_client(url, key, options)
 
 
-def get_async_client_from_auth_token(auth_token: str) -> AsyncClient:
+async def get_async_client_from_auth_token(auth_token: str) -> AsyncClient:
     """
     Create an async Supabase client for the current request.
     """
@@ -75,7 +75,7 @@ def get_async_client_from_auth_token(auth_token: str) -> AsyncClient:
         auth_token = f"Bearer {auth_token}"
 
     options = ClientOptions(headers={"Authorization": auth_token})
-    return acreate_client(url, key, options)
+    return await acreate_client(url, key, options)
 
 
 def get_auth_token(request: Request) -> str:

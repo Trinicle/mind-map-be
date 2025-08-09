@@ -1,17 +1,12 @@
 import os
-import asyncio
-import atexit
-from typing import List
-from flask import Flask, Request, request, jsonify
+from flask import Flask, request, jsonify
 from gotrue import Session
+from langchain_openai import ChatOpenAI
 from src.agent.graph import transcript_graph
 from src.agent.state import TranscriptState, ChatBotState
-from src.agent.chatbot import initialize_chatbot
-from src.agent.connection import get_checkpoint, get_redis_client
+from src.agent.chatbot import create_rag_agent
+from src.agent.connection import get_checkpoint, get_vectorstore_context
 from langchain_core.messages import HumanMessage
-from langchain_redis import RedisChatMessageHistory
-from src.flask.models.mindmap_models import MindMapResponse
-from src.flask.models.topic_models import Topic
 from src.flask.supabase.auth import (
     UserModel,
     refresh_session,
@@ -24,24 +19,22 @@ from gotrue.errors import AuthApiError
 from gotrue.types import AuthResponse
 
 from src.flask.supabase.client import get_auth_token, get_client
-from src.flask.supabase.content import insert_content_async
 from src.flask.supabase.mindmap import (
     get_mindmap_detail,
     get_user_mindmaps,
     get_user_mindmaps_by_query,
-    insert_mindmap,
 )
-from src.flask.supabase.tag import get_tags, insert_tags_async
-from src.flask.supabase.topic import get_topics, insert_topic_async
+from src.flask.supabase.tag import get_tags
+from src.flask.supabase.topic import (
+    get_topics,
+)
 import json
 from datetime import datetime
 
 from src.flask.supabase.transcript import (
     get_transcript,
-    insert_transcript,
-    insert_transcript_as_vector,
 )
-from src.agent.tools import get_messages_vectorstore
+from src.agent.connection import get_messages_vectorstore
 from src.flask.supabase.conversation import (
     create_conversation,
     get_conversation,
@@ -52,12 +45,17 @@ from src.flask.models.conversation_models import (
     ConversationCreateRequest,
     ChatMessage,
 )
+from src.flask.supabase.utils import (
+    insert_transcript_data_async,
+    load_conversation_history,
+)
 
 UPLOAD_FOLDER = "uploads"
 
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=1, max_completion_tokens=500)
 app = Flask(__name__)
 CORS(
     app,
@@ -153,7 +151,6 @@ def handle_session():
 def handle_mindmap_get():
     try:
         cards = get_user_mindmaps(request)
-        # Convert Pydantic models to dictionaries for JSON serialization
         serialized_cards = [card.model_dump() for card in cards]
         return (
             jsonify({"message": "Mindmap cards found", "data": serialized_cards}),
@@ -176,7 +173,6 @@ def handle_mindmap_search():
             else None
         )
         cards = get_user_mindmaps_by_query(request, request_title, request_tags, date)
-        # Convert Pydantic models to dictionaries for JSON serialization
         serialized_cards = [card.model_dump() for card in cards]
         return (
             jsonify({"message": "Mindmap cards found", "data": serialized_cards}),
@@ -191,7 +187,6 @@ def handle_mindmap_search():
 def handle_mindmap_detail(mindmap_id: str):
     try:
         mindmap = get_mindmap_detail(request, mindmap_id)
-        # Convert Pydantic model to dictionary for JSON serialization
         serialized_mindmap = mindmap.model_dump()
         return (
             jsonify({"message": "Mindmap detail found", "data": serialized_mindmap}),
@@ -206,7 +201,6 @@ def handle_mindmap_detail(mindmap_id: str):
 def handle_mindmap_tags():
     try:
         tags = get_tags(request)
-        # Convert Pydantic models to dictionaries for JSON serialization
         serialized_tags = [tag.model_dump() for tag in tags]
         return jsonify({"message": "Mindmap tags found", "data": serialized_tags}), 200
     except Exception as e:
@@ -215,106 +209,30 @@ def handle_mindmap_tags():
 
 
 @app.route("/dashboard/mindmap", methods=["POST"])
-def handle_mindmap_create():
+async def handle_mindmap_create():
     try:
         file = request.files.get("file")
         if not file:
             return jsonify({"message": "File is required"}), 400
 
+        file_bytes = file.read()
         title = request.form.get("title")
         description = request.form.get("description")
         date = request.form.get("date")
         tags = json.loads(request.form.get("tags", "[]"))
 
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(file_path)
-
         transcript_state = TranscriptState(
-            file_path=file_path,
+            file=file_bytes,
         )
 
         result: TranscriptState = transcript_graph.invoke(transcript_state)
 
-        os.remove(file_path)
-
-        participants = result.participants
-        topics = result.topics
-
-        transcript = insert_transcript(request, result.transcript)
-        transcript_id = transcript.id
-        insert_transcript_as_vector(request, result.transcript, transcript_id)
-
-        mindmap = insert_mindmap(
-            request, title, description, date, participants, transcript_id
-        )
-        if mindmap is None:
-            return jsonify({"message": "Failed to create mindmap"}), 400
-        print("inserted mindmap")
-
-        async def insert_data_async():
-            tasks = []
-
-            tags_task = insert_tags_async(request, tags, mindmap.id)
-            tasks.append(tags_task)
-
-            topic_tasks = []
-            for topic in topics:
-                connected_topics = topic.connected_topics
-                topic_task = insert_topic_with_content_async(
-                    request,
-                    topic,
-                    connected_topics,
-                    mindmap.id,
-                )
-                topic_tasks.append(topic_task)
-
-            tags_result = await tags_task
-            topics_results = await asyncio.gather(*topic_tasks, return_exceptions=True)
-
-            return tags_result, topics_results
-
-        async def insert_topic_with_content_async(
-            request: Request,
-            topic_data: Topic,
-            connected_topics: List[str],
-            mindmap_id: str,
-        ):
-            topic = await insert_topic_async(
-                request, topic_data.title, connected_topics, mindmap_id
-            )
-            print("inserted topic")
-            if topic is None:
-                return None
-
-            content_tasks = []
-            for content_item in topic_data.get("content", []):
-                if content_item and content_item.get("text"):
-                    content_task = insert_content_async(
-                        request,
-                        content_item.text,
-                        content_item.speaker,
-                        topic.id,
-                    )
-                    content_tasks.append(content_task)
-
-            if content_tasks:
-                await asyncio.gather(*content_tasks, return_exceptions=True)
-                print("inserted content for topic")
-
-            return topic
-
-        tags, topics_results = asyncio.run(insert_data_async())
-
-        response = MindMapResponse(
-            id=mindmap.id,
-            title=mindmap.title,
-            description=mindmap.description,
-            date=mindmap.date,
-            tags=[tag.name for tag in tags],
+        mindmap = await insert_transcript_data_async(
+            request, result, title, description, date, tags
         )
 
         return (
-            jsonify({"message": "Mindmap created", "data": response.model_dump()}),
+            jsonify({"message": "Mindmap created", "data": mindmap.model_dump()}),
             200,
         )
     except Exception as e:
@@ -326,9 +244,8 @@ def handle_mindmap_create():
 def handle_mindmap_get_detail(mindmap_id: str):
     try:
         mindmap = get_mindmap_detail(request, mindmap_id)
-        serialized_mindmap = mindmap.model_dump()
         return (
-            jsonify({"message": "Mindmap detail found", "data": serialized_mindmap}),
+            jsonify({"message": "Mindmap detail found", "data": mindmap.model_dump()}),
             200,
         )
     except Exception as e:
@@ -340,10 +257,13 @@ def handle_mindmap_get_detail(mindmap_id: str):
 def handle_mindmap_topics(mindmap_id: str):
     try:
         topics = get_topics(request, mindmap_id)
-        # Convert Pydantic models to dictionaries for JSON serialization
-        serialized_topics = [topic.model_dump() for topic in topics]
         return (
-            jsonify({"message": "Mindmap topics found", "data": serialized_topics}),
+            jsonify(
+                {
+                    "message": "Mindmap topics found",
+                    "data": [topic.model_dump() for topic in topics],
+                }
+            ),
             200,
         )
     except Exception as e:
@@ -355,11 +275,12 @@ def handle_mindmap_topics(mindmap_id: str):
 def handle_transcript_get_detail(mindmap_id: str):
     try:
         transcript = get_transcript(request, mindmap_id)
-        # Convert Pydantic model to dictionary for JSON serialization
-        serialized_transcript = transcript.model_dump()
         return (
             jsonify(
-                {"message": "Transcript detail found", "data": serialized_transcript}
+                {
+                    "message": "Transcript detail found",
+                    "data": transcript.model_dump(),
+                }
             ),
             200,
         )
@@ -406,41 +327,10 @@ def handle_get_conversations():
 
 
 @app.route("/conversations/<conversation_id>", methods=["GET"])
-def handle_get_conversation(conversation_id: str):
+async def handle_get_conversation(conversation_id: str):
     """Get conversation history (last 10 messages) and load into Redis"""
     try:
-        conversation = get_conversation(request, conversation_id)
-        if not conversation:
-            return jsonify({"message": "Conversation not found"}), 404
-
-        config = {"configurable": {"thread_id": conversation_id}}
-
-        with get_checkpoint() as checkpoint:
-            state = checkpoint.get(config)
-            messages = state.get("channel_values", {}).get("messages", [])
-
-        with get_redis_client() as redis_client:
-            redis_history = RedisChatMessageHistory(
-                session_id=conversation_id, redis_client=redis_client
-            )
-
-            redis_history.clear()
-
-            for msg in messages:
-                if msg.type != "tool":
-                    redis_history.add_message(msg)
-
-        history = [
-            ChatMessageResponse(
-                message=(
-                    msg.content if isinstance(msg.content, str) else str(msg.content)
-                ),
-                type=msg.type,
-                id=msg.id,
-            ).model_dump()
-            for msg in messages[-10:]
-            if msg.type != "tool" and msg.type != "system"
-        ]
+        history = await load_conversation_history(conversation_id)
 
         return (
             jsonify({"message": "Conversation history found", "data": history}),
@@ -483,15 +373,13 @@ def handle_send_message():
             )
         ]
 
-        with get_checkpoint() as checkpoint:
+        with get_checkpoint() as checkpoint, get_vectorstore_context() as vectorstore:
             initial_state = ChatBotState(
                 messages=messages,
-                user_id=user_id,
-                conversation_id=chat_request.conversation_id,
-                transcript_id=conversation.transcript_id,
             )
-            chatbot = initialize_chatbot(checkpoint)
-
+            chatbot = create_rag_agent(
+                checkpoint, llm, vectorstore, user_id, chat_request.conversation_id
+            )
             result = chatbot.invoke(initial_state, config=write_config)
 
         sent_message_content = result["messages"][-2].content

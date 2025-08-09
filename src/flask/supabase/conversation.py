@@ -13,6 +13,7 @@ def create_conversation(
     """Create a new conversation for the current user."""
     data = {"transcript_id": transcript_id, "title": create_title(query)}
 
+    print(data)
     try:
         client = get_client(request)
         result = client.table("Conversation").insert(data).execute()

@@ -5,28 +5,25 @@ from langgraph.graph import add_messages
 from langchain_core.messages import BaseMessage
 
 
-class Content(BaseModel):
+class ContentState(BaseModel):
     speaker: Optional[str] = None
     text: Optional[str] = None
 
 
-class Topic(BaseModel):
+class TopicState(BaseModel):
     title: Optional[str] = None
-    content: List[Content] = Field(default_factory=list)
+    content: List[ContentState] = Field(default_factory=list)
     connected_topics: List[str] = Field(default_factory=list)
 
 
 class TranscriptState(BaseModel):
-    file_path: str
+    file: bytes
     quality_check: Optional[int] = None
     transcript_chunks: List[str] = Field(default_factory=list)
     transcript: Optional[str] = None
     participants: List[str] = Field(default_factory=list)
-    topics: List[Topic] = Field(default_factory=list)
+    topics: List[TopicState] = Field(default_factory=list)
 
 
 class ChatBotState(BaseModel):
     messages: Annotated[list[BaseMessage], add_messages]
-    user_id: str
-    conversation_id: str
-    transcript_id: Optional[str] = None
