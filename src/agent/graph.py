@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 
-from src.agent.utils.nodes import (
+from src.agent.nodes import (
     load_transcript_node,
     clean_transcript_node,
     quality_score_condition_node,
@@ -9,7 +9,7 @@ from src.agent.utils.nodes import (
     identify_topics_node,
     split_transcript_node,
 )
-from src.agent.utils.state import TranscriptState
+from src.agent.state import TranscriptState
 
 
 transcript_builder = StateGraph(TranscriptState)

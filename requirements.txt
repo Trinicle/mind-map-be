@@ -4,6 +4,8 @@ langchain
 langchain_core
 langchain_openai
 langchain_community
+langchain_postgres
+langchain_redis
 langgraph
 supabase
 flask-cors

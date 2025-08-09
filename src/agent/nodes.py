@@ -5,13 +5,16 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
 )
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel
-from src.agent.utils.tools import tools
-from src.agent.utils.prompts import ChatBotPrompts, MindMapPrompts
-from src.agent.utils.state import ChatBotState, Content, Topic, TranscriptState
+from src.agent.connection import get_redis_history
+from src.agent.tools import tools
+from src.agent.prompts import ChatBotPrompts, MindMapPrompts
+from src.agent.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
 llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=500)
@@ -145,28 +148,45 @@ def identify_topics_node(state: TranscriptState):
 
 
 def query_node(state: ChatBotState):
+    """
+    Process the user's query with conversation history from Redis.
+    Returns AI message with potential tool calls.
+    """
     config = {
-        "configurable": {},
+        "configurable": {
+            "session_id": state.conversation_id,
+        },
         "metadata": {
             "user_id": state.user_id,
             "transcript_id": state.transcript_id,
             "conversation_id": state.conversation_id,
         },
     }
-    print(f"Query node config: {config}")
 
-    WINDOW_MESSAGE_COUNT = 8
-    history_messages = [
-        msg
-        for msg in state.messages
-        if getattr(msg, "type", "") not in ("system", "tool")
-    ]
-    window_history = history_messages[-WINDOW_MESSAGE_COUNT:]
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", ChatBotPrompts.CHATBOT_SYSTEM),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{input}"),
+        ]
+    )
 
-    llm_messages = [SystemMessage(content=ChatBotPrompts.CHATBOT_SYSTEM)]
-    llm_messages.extend(window_history)
+    chain = prompt | llm_with_tools
 
-    return {"messages": [llm_with_tools.invoke(llm_messages, config=config)]}
+    with get_redis_history(state.conversation_id) as redis_history:
+        llm_with_history = RunnableWithMessageHistory(
+            chain,
+            get_session_history=redis_history,
+            input_messages_key="input",
+            history_messages_key="history",
+        )
+
+        latest_message = state.messages[-1]
+        user_input = latest_message.content
+
+        return {
+            "messages": [llm_with_history.invoke({"input": user_input}, config=config)]
+        }
 
 
 def contextual_tool_node(state: ChatBotState):
@@ -175,7 +195,6 @@ def contextual_tool_node(state: ChatBotState):
         "configurable": {},
         "metadata": {"user_id": state.user_id, "transcript_id": state.transcript_id},
     }
-    print(f"Tool node config: {config}")
     tool_executor = ToolNode(tools)
     return tool_executor.invoke(state, config=config)
 

@@ -1,68 +1,18 @@
 import os
 from typing import List
-from contextlib import contextmanager
-from langchain_core.embeddings import Embeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_postgres import PGVector
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.runnables import ensure_config
 from dotenv import load_dotenv
 
+from src.agent.connection import get_messages_vectorstore, get_vectorstore
+
 
 load_dotenv()
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 title_llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=50)
-
-
-@contextmanager
-def get_vectorstore():
-    """Create a per-request transcript vectorstore connection with automatic cleanup."""
-    vectorstore = None
-    try:
-        vectorstore = PGVector(
-            connection=os.getenv("DATABASE_URL"),
-            embeddings=embeddings,
-            collection_name="Transcript_Vector",
-            use_jsonb=True,
-        )
-        yield vectorstore
-    finally:
-        if (
-            vectorstore
-            and hasattr(vectorstore, "_connection")
-            and vectorstore._connection
-        ):
-            try:
-                vectorstore._connection.close()
-            except Exception as e:
-                print(f"Warning: Error closing vectorstore connection: {e}")
-
-
-@contextmanager
-def get_messages_vectorstore():
-    """Create a per-request messages vectorstore connection with automatic cleanup."""
-    vectorstore = None
-    try:
-        vectorstore = PGVector(
-            connection=os.getenv("DATABASE_URL"),
-            embeddings=embeddings,
-            collection_name="Message_Vector",
-            use_jsonb=True,
-        )
-        yield vectorstore
-    finally:
-        if (
-            vectorstore
-            and hasattr(vectorstore, "_connection")
-            and vectorstore._connection
-        ):
-            try:
-                vectorstore._connection.close()
-            except Exception as e:
-                print(f"Warning: Error closing messages vectorstore connection: {e}")
 
 
 def create_title(query: str) -> str:

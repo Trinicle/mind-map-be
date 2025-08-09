@@ -1,6 +1,6 @@
 from typing import List, Optional
 from flask import Request
-from src.agent.utils.tools import create_title
+from src.agent.tools import create_title
 from src.flask.models.conversation_models import Conversation
 from .client import get_client
 

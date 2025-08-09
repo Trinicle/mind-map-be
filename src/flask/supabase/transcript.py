@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
 from .client import get_auth_token, get_client
-from src.agent.utils.tools import get_vectorstore
+from src.agent.tools import get_vectorstore
 
 load_dotenv()
 

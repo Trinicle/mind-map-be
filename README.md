@@ -2,6 +2,5 @@
 
 # scripts
 
-& c:/Projects/mind-map-be/.venv/Scripts/Activate.ps1
-python -m src.agent.main
+docker run -d --name redis -p 6379:6379 redis:<version\> \
 python -m main

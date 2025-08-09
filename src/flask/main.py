@@ -4,11 +4,12 @@ import atexit
 from typing import List
 from flask import Flask, Request, request, jsonify
 from gotrue import Session
-from src.agent.utils.graph import transcript_graph
-from src.agent.utils.state import TranscriptState, ChatBotState
-from src.agent.utils.chatbot import initialize_chatbot
-from src.agent.utils.connection import get_checkpoint
+from src.agent.graph import transcript_graph
+from src.agent.state import TranscriptState, ChatBotState
+from src.agent.chatbot import initialize_chatbot
+from src.agent.connection import get_checkpoint, get_redis_client
 from langchain_core.messages import HumanMessage
+from langchain_redis import RedisChatMessageHistory
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.models.topic_models import Topic
 from src.flask.supabase.auth import (
@@ -40,7 +41,7 @@ from src.flask.supabase.transcript import (
     insert_transcript,
     insert_transcript_as_vector,
 )
-from src.agent.utils.tools import get_messages_vectorstore
+from src.agent.tools import get_messages_vectorstore
 from src.flask.supabase.conversation import (
     create_conversation,
     get_conversation,
@@ -404,9 +405,9 @@ def handle_get_conversations():
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 
-@app.route("/conversations/<conversation_id>/history", methods=["GET"])
-def handle_get_conversation_history(conversation_id: str):
-    """Get conversation history (last 10 messages)"""
+@app.route("/conversations/<conversation_id>", methods=["GET"])
+def handle_get_conversation(conversation_id: str):
+    """Get conversation history (last 10 messages) and load into Redis"""
     try:
         conversation = get_conversation(request, conversation_id)
         if not conversation:
@@ -417,6 +418,17 @@ def handle_get_conversation_history(conversation_id: str):
         with get_checkpoint() as checkpoint:
             state = checkpoint.get(config)
             messages = state.get("channel_values", {}).get("messages", [])
+
+        with get_redis_client() as redis_client:
+            redis_history = RedisChatMessageHistory(
+                session_id=conversation_id, redis_client=redis_client
+            )
+
+            redis_history.clear()
+
+            for msg in messages:
+                if msg.type != "tool":
+                    redis_history.add_message(msg)
 
         history = [
             ChatMessageResponse(
@@ -456,7 +468,6 @@ def handle_send_message():
 
         user_id = client.auth.get_user(auth_token).user.id
 
-        read_config = {"configurable": {"thread_id": chat_request.conversation_id}}
         write_config = {
             "configurable": {
                 "thread_id": chat_request.conversation_id,
@@ -464,30 +475,15 @@ def handle_send_message():
             }
         }
 
+        context = conversation.transcript_id if conversation.transcript_id else ""
+        messages = [
+            HumanMessage(
+                content=chat_request.message,
+                additional_kwargs={"transcript_id": context} if context else {},
+            )
+        ]
+
         with get_checkpoint() as checkpoint:
-            existing_state = checkpoint.get(read_config)
-            is_new_conversation = not existing_state or not existing_state.get(
-                "channel_values", {}
-            ).get("messages", [])
-            messages = []
-
-            query = chat_request.message
-            context = conversation.transcript_id if conversation.transcript_id else ""
-            if is_new_conversation:
-                new_message = HumanMessage(
-                    content=query,
-                    additional_kwargs={"transcript_id": context} if context else {},
-                )
-                messages.append(new_message)
-            else:
-                messages = existing_state.get("channel_values", {}).get("messages", [])
-                messages.append(
-                    HumanMessage(
-                        content=query,
-                        additional_kwargs={"transcript_id": context} if context else {},
-                    )
-                )
-
             initial_state = ChatBotState(
                 messages=messages,
                 user_id=user_id,
@@ -498,7 +494,6 @@ def handle_send_message():
 
             result = chatbot.invoke(initial_state, config=write_config)
 
-        print(result)
         sent_message_content = result["messages"][-2].content
         sent_message_type = result["messages"][-2].type
         sent_message_id = result["messages"][-2].id

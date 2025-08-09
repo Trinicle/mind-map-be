@@ -1,12 +1,12 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import tools_condition
-from src.agent.utils.connection import get_checkpoint
-from src.agent.utils.nodes import (
+from src.agent.connection import get_checkpoint
+from src.agent.nodes import (
     contextual_tool_node,
     query_node,
     response_node,
 )
-from src.agent.utils.state import ChatBotState
+from src.agent.state import ChatBotState
 
 
 def initialize_chatbot(checkpoint):
