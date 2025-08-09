@@ -7,18 +7,18 @@ from langchain_community.document_loaders import (
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.tools.retriever import create_retriever_tool
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel
-from src.agent.connection import get_redis_history
+from src.agent.connection import get_redis_history, get_vectorstore
 from src.agent.tools import tools
 from src.agent.prompts import ChatBotPrompts, MindMapPrompts
 from src.agent.state import ChatBotState, Content, Topic, TranscriptState
 
 load_dotenv()
 llm = ChatOpenAI(model="gpt-5-nano", temperature=1, max_completion_tokens=500)
-llm_with_tools = llm.bind_tools(tools)
 
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
@@ -171,32 +171,47 @@ def query_node(state: ChatBotState):
         ]
     )
 
-    chain = prompt | llm_with_tools
+    filters = {
+        "user_id": state.user_id,
+    }
 
-    with get_redis_history(state.conversation_id) as redis_history:
-        llm_with_history = RunnableWithMessageHistory(
-            chain,
-            get_session_history=redis_history,
-            input_messages_key="input",
-            history_messages_key="history",
+    if state.transcript_id:
+        filters["transcript_id"] = state.transcript_id
+
+    with get_vectorstore() as vectorstore:
+        retriever = vectorstore.as_retriever(
+            search_kwargs={
+                "k": 3,
+                "filter": filters,
+            }
+        )
+        retriever_tool = create_retriever_tool(
+            retriever,
+            name="transcript_retriever",
+            description="A tool that can retrieve information from the transcript",
         )
 
-        latest_message = state.messages[-1]
-        user_input = latest_message.content
+        all_tools = [retriever_tool] + tools
+        llm_with_tools = llm.bind_tools(all_tools)
 
-        return {
-            "messages": [llm_with_history.invoke({"input": user_input}, config=config)]
-        }
+        chain = prompt | llm_with_tools
 
+        with get_redis_history(state.conversation_id) as redis_history:
+            llm_with_history = RunnableWithMessageHistory(
+                chain,
+                get_session_history=redis_history,
+                input_messages_key="input",
+                history_messages_key="history",
+            )
 
-def contextual_tool_node(state: ChatBotState):
-    """Tool node that passes context through config metadata"""
-    config = {
-        "configurable": {},
-        "metadata": {"user_id": state.user_id, "transcript_id": state.transcript_id},
-    }
-    tool_executor = ToolNode(tools)
-    return tool_executor.invoke(state, config=config)
+            latest_message = state.messages[-1]
+            user_input = latest_message.content
+
+            return {
+                "messages": [
+                    llm_with_history.invoke({"input": user_input}, config=config)
+                ]
+            }
 
 
 def response_node(state: ChatBotState):

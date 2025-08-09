@@ -4,7 +4,6 @@ This module is separate to avoid circular imports.
 """
 
 import os
-from langchain_core.chat_history import BaseChatMessageHistory
 from redis import Redis
 from contextlib import contextmanager
 from dotenv import load_dotenv

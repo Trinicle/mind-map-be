@@ -1,8 +1,6 @@
 from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import tools_condition
-from src.agent.connection import get_checkpoint
+from langgraph.prebuilt import tool_node, tools_condition
 from src.agent.nodes import (
-    contextual_tool_node,
     query_node,
     response_node,
 )
@@ -21,7 +19,7 @@ def initialize_chatbot(checkpoint):
     chatbot_builder = StateGraph(ChatBotState)
 
     chatbot_builder.add_node("query", query_node)
-    chatbot_builder.add_node("tools", contextual_tool_node)
+    chatbot_builder.add_node("tools", tool_node)
     chatbot_builder.add_node("response", response_node)
 
     chatbot_builder.add_edge(START, "query")
