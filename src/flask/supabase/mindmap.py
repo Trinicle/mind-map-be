@@ -2,7 +2,7 @@ from typing import List
 from datetime import datetime
 from flask import Request
 
-from src.flask.models.mindmap_models import MindMap, MindMapResponse
+from src.flask.models.mindmap_models import MindMap, MindMapResponse, MindMapWithTags
 from .client import get_async_client, get_client
 
 
@@ -38,7 +38,6 @@ def insert_mindmap(
         title=data["title"],
         participants=data["participants"],
         description=data["description"],
-        tags=data["tags"],
         created_at=data["created_at"],
         date=data["date"],
     )
@@ -61,7 +60,6 @@ async def insert_mindmap_async(
         "participants": participants,
         "transcript_id": transcript_id,
     }
-
     client = await get_async_client(request)
     result = await client.table("MindMap").insert(data).execute()
     data = result.data[0] if result.data else None
@@ -72,7 +70,6 @@ async def insert_mindmap_async(
         title=data["title"],
         participants=data["participants"],
         description=data["description"],
-        tags=data["tags"],
         created_at=data["created_at"],
         date=data["date"],
     )
@@ -136,8 +133,7 @@ def get_mindmap_detail(request: Request, mindmap_id: str) -> MindMap:
         "get_mindmap_with_tags_by_id", {"input_id": mindmap_id}
     ).execute()
     data = result.data[0] if result.data else None
-    print(data)
-    return MindMap(
+    return MindMapWithTags(
         id=data["id"],
         user_id=data["user_id"],
         title=data["title"],

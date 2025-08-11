@@ -25,7 +25,9 @@ transcript_builder.add_edge(START, "load_transcript")
 transcript_builder.add_edge("load_transcript", "clean_transcript")
 transcript_builder.add_edge("clean_transcript", "quality_check")
 transcript_builder.add_edge("split_transcript", "identify_participants")
-transcript_builder.add_edge("identify_participants", "identify_topics")
+transcript_builder.add_edge("split_transcript", "identify_topics")
+
+transcript_builder.add_edge("identify_participants", END)
 transcript_builder.add_edge("identify_topics", END)
 
 transcript_builder.add_conditional_edges(

@@ -18,6 +18,7 @@ class TopicState(BaseModel):
 
 class TranscriptState(BaseModel):
     file: bytes
+    file_name: str
     quality_check: Optional[int] = None
     transcript_chunks: List[str] = Field(default_factory=list)
     transcript: Optional[str] = None

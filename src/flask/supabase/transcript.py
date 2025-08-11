@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.flask.models.transcript_models import Transcript
 from .client import get_async_client, get_auth_token, get_client
-from src.agent.connection import get_vectorstore
+from src.agent.connection import get_vectorstore, get_vectorstore_context
 
 load_dotenv()
 
@@ -80,13 +80,14 @@ async def insert_transcript_as_vector_async(
     chunks = _chunk_transcript(text)
     client = await get_async_client(request)
     auth_token = get_auth_token(request)
-    user_id = client.auth.get_user(auth_token).user.id
+    user_response = await client.auth.get_user(auth_token)
+    user_id = user_response.user.id
 
     metadata = {
         "transcript_id": transcript_id,
         "user_id": user_id,
     }
-    with get_vectorstore() as vectorstore:
+    with get_vectorstore_context() as vectorstore:
         vectorstore.add_texts(chunks, metadatas=[metadata] * len(chunks))
 
 

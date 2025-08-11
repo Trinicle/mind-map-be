@@ -2,10 +2,15 @@ import os
 from flask import Flask, request, jsonify
 from gotrue import Session
 from langchain_openai import ChatOpenAI
+from langchain_redis import RedisChatMessageHistory
 from src.agent.graph import transcript_graph
 from src.agent.state import TranscriptState, ChatBotState
 from src.agent.chatbot import create_rag_agent
-from src.agent.connection import get_checkpoint, get_vectorstore_context
+from src.agent.connection import (
+    get_checkpoint,
+    get_redis_client,
+    get_vectorstore_context,
+)
 from langchain_core.messages import HumanMessage
 from src.flask.supabase.auth import (
     UserModel,
@@ -223,9 +228,12 @@ async def handle_mindmap_create():
 
         transcript_state = TranscriptState(
             file=file_bytes,
+            file_name=file.filename,
         )
 
-        result: TranscriptState = transcript_graph.invoke(transcript_state)
+        result_dict = await transcript_graph.ainvoke(transcript_state)
+
+        result = TranscriptState(**result_dict)
 
         mindmap = await insert_transcript_data_async(
             request, result, title, description, date, tags
@@ -382,54 +390,31 @@ def handle_send_message():
             )
             result = chatbot.invoke(initial_state, config=write_config)
 
-        sent_message_content = result["messages"][-2].content
-        sent_message_type = result["messages"][-2].type
-        sent_message_id = result["messages"][-2].id
-        response_message_content = result["messages"][-1].content
-        response_message_type = result["messages"][-1].type
-        response_message_id = result["messages"][-1].id
+        messages = result["messages"]
+
+        human_message = None
+        ai_message = None
+
+        for msg in reversed(messages):
+            if msg.type == "human" and human_message is None:
+                human_message = msg
+            elif msg.type == "ai" and ai_message is None:
+                ai_message = msg
+
+            if human_message and ai_message:
+                break
 
         sent_message = ChatMessageResponse(
-            message=sent_message_content,
-            type=sent_message_type,
-            id=sent_message_id,
+            message=human_message.content,
+            type=human_message.type,
+            id=human_message.id,
         )
 
         response_message = ChatMessageResponse(
-            message=response_message_content,
-            type=response_message_type,
-            id=response_message_id,
+            message=ai_message.content,
+            type=ai_message.type,
+            id=ai_message.id,
         )
-
-        try:
-            texts = [
-                sent_message_content if sent_message_type != "tool" else None,
-                response_message_content if response_message_type != "tool" else None,
-            ]
-            metadatas = [
-                {
-                    "user_id": user_id,
-                    "conversation_id": chat_request.conversation_id,
-                    "role": sent_message_type,
-                },
-                {
-                    "user_id": user_id,
-                    "conversation_id": chat_request.conversation_id,
-                    "role": response_message_type,
-                },
-            ]
-            cleaned = [
-                (t, m)
-                for t, m in zip(texts, metadatas)
-                if t is not None and isinstance(t, str)
-            ]
-            if cleaned:
-                with get_messages_vectorstore() as messages_vectorstore:
-                    messages_vectorstore.add_texts(
-                        [t for t, _ in cleaned], metadatas=[m for _, m in cleaned]
-                    )
-        except Exception as e:
-            print(f"Warning: failed to index messages to vector store: {e}")
 
         return (
             jsonify(

@@ -92,7 +92,6 @@ class ChatBotPrompts:
         
     Instructions for handling queries:
         - Use any of the necessary tools supplied to answer the query if needed.
-        - For transcript-related questions:
-            * Use query_transcript - automatically searches the current transcript if context is available, otherwise searches all user transcripts
+        - For transcript-related or mindmap-related questions, use any appropriate tool.
         - For general internet searches, use the query_internet tool.
     """

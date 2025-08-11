@@ -9,9 +9,12 @@ class MindMap(BaseModel):
     title: str
     participants: List[str]
     description: str
-    tags: List[str]
     created_at: datetime
     date: datetime
+
+
+class MindMapWithTags(MindMap):
+    tags: List[str]
 
 
 class MindMapPostRequest(BaseModel):

@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 from flask import Request
+from langchain_core.messages import BaseMessage
 from langchain_redis import RedisChatMessageHistory
 from src.agent.connection import get_checkpoint, get_redis_client
 from src.agent.state import TranscriptState
@@ -29,15 +30,26 @@ async def insert_transcript_data_async(
 
     transcript_result = await insert_transcript_async(request, transcript)
     transcript_id = transcript_result.id
-
     tasks = [
         insert_transcript_as_vector_async(request, transcript, transcript_id),
         insert_mindmap_async(
             request, title, description, date, participants, transcript_id
         ),
     ]
-    _, mindmap = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    # Check if any tasks failed and handle accordingly
+    vector_result, mindmap_result = results
+
+    if isinstance(vector_result, Exception):
+        print(f"Vector insertion failed: {vector_result}")
+        # Continue execution - vector insertion failure is not critical
+
+    if isinstance(mindmap_result, Exception):
+        print(f"Mindmap insertion failed: {mindmap_result}")
+        raise mindmap_result  # Re-raise since mindmap is critical
+
+    mindmap = mindmap_result
     tags_result = await insert_tags_async(request, tags, mindmap.id)
 
     topic_tasks = []
@@ -55,32 +67,53 @@ async def insert_transcript_data_async(
         title=mindmap.title,
         description=mindmap.description,
         date=mindmap.date,
-        tags=[tag.name for tag in tags],
+        tags=[tag.name for tag in tags_result],
     )
 
 
 async def load_conversation_history(conversation_id: str):
-    config = {"configurable": {"thread_id": conversation_id}}
     history = []
-    with get_checkpoint() as checkpoint:
-        state = checkpoint.get(config)
-        messages = state.get("channel_values", {}).get("messages", [])
 
     with get_redis_client() as redis_client:
         redis_history = RedisChatMessageHistory(
             session_id=conversation_id, redis_client=redis_client
         )
 
-        redis_history.clear()
-        for msg in messages:
-            if msg.type not in ["tool", "system"]:
-                redis_history.add_message(msg)
-
-                message = ChatMessageResponse(
+        existing = redis_history
+        if existing:
+            return [
+                ChatMessageResponse(
                     message=msg.content,
                     type=msg.type,
-                    id=msg.id,
+                    id=msg.additional_kwargs["id"],
                 ).model_dump()
-                history.append(message)
+                for msg in existing.messages
+                if msg.type not in ["tool", "system"]
+                and (
+                    hasattr(msg, "additional_kwargs")
+                    and msg.additional_kwargs.get("tool_calls") is None
+                )
+            ]
 
+        config = {"configurable": {"thread_id": conversation_id}}
+        with get_checkpoint() as checkpoint:
+            state = checkpoint.get(config)
+            messages: List[BaseMessage] = state.get("channel_values", {}).get(
+                "messages", []
+            )
+
+        for msg in messages:
+            if msg.type not in ["tool", "system"] and (
+                hasattr(msg, "additional_kwargs")
+                and msg.additional_kwargs.get("tool_calls") is None
+            ):
+                msg.additional_kwargs["id"] = msg.id
+                redis_history.add_message(msg)
+                history.append(
+                    ChatMessageResponse(
+                        message=msg.content,
+                        type=msg.type,
+                        id=msg.id,
+                    ).model_dump()
+                )
     return history
