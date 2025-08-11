@@ -12,6 +12,7 @@ langchain_unstructured
 langgraph
 supabase
 unstructured
+unstructured[docx]
 dotenv
 langchain_tavily
 psycopg_pool

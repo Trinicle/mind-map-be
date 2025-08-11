@@ -57,7 +57,7 @@ class MindMapPrompts:
     IDENTIFY_TOPICS_SYSTEM = """
 		You are analyzing a transcript of a meeting. Identify the topics, supporting quotes and connections between topics that were discussed in the meeting.
  	 	For topic organization:
-			- Each topic should represent a single, coherent theme or discussion point
+			- Each topic should represent a single, coherent theme or discussion point that relates to the idea of the meeting.
 			- Create concise titles (maximum 4 words) that capture the essence of each topic
 			- Extract relevant content segments that support each topic
 			- Identify logical connections between related topics
@@ -65,6 +65,9 @@ class MindMapPrompts:
 		Quality requirements:
 			- Topic titles should be unique and descriptive (e.g., "Client Onboarding Process" not just "Client")
 			- Each content segment should belong to exactly one topic
+            - A content segment must impact the topic significantly. It should not be a filler or a comment that does not contribute to the topic.
+            - A multiple content segments do not have to be in the same order as the transcript.
+            - A topic must have at least one content segment
 			- Topics can be connected if they're contextually related but still distinct
 			- Use only information directly from the transcript
 		"""
@@ -80,6 +83,21 @@ class MindMapPrompts:
 		- Connected topic titles that relate to this topic
 		
 		Ensure each content segment belongs to exactly one topic, and use only information directly from the transcript.
+        """
+
+    CREATE_QUESTIONS_SYSTEM = """
+		You are analyzing a transcript of a meeting. Create follow up questions to the topics that were discussed in the meeting.
+        - A follow up question should be a question that is related to the topic and that can be answered with additional information from the transcript.
+        - A follow up question should be a question that is not already answered in the transcript.
+        - A follow up question should be incomplete with the information provided in the transcript.
+        - A follow up question should be a question that is not already answered in the transcript.
+		"""
+
+    @staticmethod
+    def create_questions_prompt(transcript: str):
+        return f"""
+		Here is the transcript that you need to create questions for: {transcript}
+		Create follow up questions to the topics that were discussed in the meeting.
         """
 
 

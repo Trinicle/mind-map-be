@@ -101,16 +101,16 @@ def get_user_mindmaps_by_query(
     Get all mindmaps for the current user by query.
     """
     client = get_client(request)
-    select = client.table("MindMap").select("id, title, description, tags, date")
+    filter = {}
 
     if title:
-        select = select.eq("title", title)
+        filter["input_title"] = title
     if tags:
-        select = select.contains("tags", tags)
+        filter["input_tags"] = tags
     if date:
-        select = select.eq("date", date)
+        filter["input_date"] = date.isoformat()
 
-    result = select.execute()
+    result = client.rpc("get_mindmaps_with_tags_by_filter", filter).execute()
     data = result.data if result.data else []
     return [
         MindMapResponse(

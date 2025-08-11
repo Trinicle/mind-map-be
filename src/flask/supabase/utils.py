@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 from flask import Request
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage
 from langchain_redis import RedisChatMessageHistory
 from src.agent.connection import get_checkpoint, get_redis_client
@@ -8,12 +9,16 @@ from src.agent.state import TranscriptState
 from src.flask.models.conversation_models import ChatMessageResponse
 from src.flask.models.mindmap_models import MindMapResponse
 from src.flask.supabase.mindmap import insert_mindmap_async
+from src.flask.supabase.question import insert_questions_async
 from src.flask.supabase.tag import insert_tags_async
 from src.flask.supabase.topic import insert_topic_with_content_async
 from src.flask.supabase.transcript import (
+    get_transcript,
     insert_transcript_as_vector_async,
     insert_transcript_async,
 )
+
+llm = ChatOpenAI(model="gpt-5-nano", temperature=1)
 
 
 async def insert_transcript_data_async(
@@ -27,6 +32,7 @@ async def insert_transcript_data_async(
     participants = transcript_state.participants
     topics = transcript_state.topics
     transcript = transcript_state.transcript
+    questions = transcript_state.questions
 
     transcript_result = await insert_transcript_async(request, transcript)
     transcript_id = transcript_result.id
@@ -50,7 +56,10 @@ async def insert_transcript_data_async(
         raise mindmap_result  # Re-raise since mindmap is critical
 
     mindmap = mindmap_result
-    tags_result = await insert_tags_async(request, tags, mindmap.id)
+    tags_result, questions_result = await asyncio.gather(
+        insert_tags_async(request, tags, mindmap.id),
+        insert_questions_async(request, questions, mindmap.id),
+    )
 
     topic_tasks = []
     for topic in topics:

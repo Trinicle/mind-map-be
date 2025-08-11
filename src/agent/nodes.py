@@ -6,7 +6,7 @@ from langchain_unstructured.document_loaders import UnstructuredLoader
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from src.agent.prompts import MindMapPrompts
 from src.agent.state import TopicState, TranscriptState
 
@@ -15,6 +15,10 @@ llm = ChatOpenAI(model="gpt-5-nano", temperature=1)
 
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
+
+
+class QuestionsOutput(BaseModel):
+    questions: List[str] = Field(default_factory=list)
 
 
 class QualityCheckOutput(BaseModel):
@@ -115,3 +119,16 @@ async def identify_topics_node(state: TranscriptState):
     topics = response.topics
 
     return {"topics": topics}
+
+
+async def create_questions_node(state: TranscriptState):
+    transcript = state.transcript
+    structured_llm = llm.with_structured_output(QuestionsOutput)
+
+    messages = [
+        SystemMessage(content=MindMapPrompts.CREATE_QUESTIONS_SYSTEM),
+        HumanMessage(content=MindMapPrompts.create_questions_prompt(transcript)),
+    ]
+    response = await structured_llm.ainvoke(messages)
+
+    return {"questions": response.questions}

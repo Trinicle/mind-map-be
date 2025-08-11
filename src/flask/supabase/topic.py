@@ -1,9 +1,13 @@
 import asyncio
 from flask import Request
+from langchain_openai import ChatOpenAI
 from src.agent.state import ContentState, TopicState
-from src.flask.models.topic_models import Topic
+from src.flask.models.content_models import BasicContent
+from src.flask.models.topic_models import Topic, TopicDetail
 from src.flask.supabase.client import get_client, get_async_client
 from src.flask.supabase.content import insert_content_async
+
+llm = ChatOpenAI(model="gpt-5-nano", temperature=1)
 
 
 def get_topics(request: Request, mindmap_id: str) -> list[Topic]:
@@ -25,6 +29,32 @@ def get_topics(request: Request, mindmap_id: str) -> list[Topic]:
         )
         for topic in data
     ]
+
+
+def get_topic_detail(request: Request, topic_id: str) -> TopicDetail:
+    client = get_client(request)
+    topic_result = client.table("Topic").select("*").eq("id", topic_id).execute()
+    contents_result = (
+        client.table("Content").select("*").eq("topic_id", topic_id).execute()
+    )
+
+    topic_data = topic_result.data[0]
+    contents_data = contents_result.data
+    print(contents_data)
+
+    topic_detail = TopicDetail(
+        id=topic_data["id"],
+        title=topic_data["title"],
+        content=[
+            BasicContent(
+                id=content["id"],
+                speaker=content["speaker"],
+                text=content["text"],
+            )
+            for content in contents_data
+        ],
+    )
+    return topic_detail
 
 
 def insert_topic(

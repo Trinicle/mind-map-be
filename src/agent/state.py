@@ -24,6 +24,7 @@ class TranscriptState(BaseModel):
     transcript: Optional[str] = None
     participants: List[str] = Field(default_factory=list)
     topics: List[TopicState] = Field(default_factory=list)
+    questions: List[str] = Field(default_factory=list)
 
 
 class ChatBotState(BaseModel):

@@ -29,8 +29,10 @@ from src.flask.supabase.mindmap import (
     get_user_mindmaps,
     get_user_mindmaps_by_query,
 )
+from src.flask.supabase.question import get_questions
 from src.flask.supabase.tag import get_tags
 from src.flask.supabase.topic import (
+    get_topic_detail,
     get_topics,
 )
 import json
@@ -169,7 +171,7 @@ def handle_mindmap_get():
 @app.route("/dashboard/mindmap/search", methods=["GET"])
 def handle_mindmap_search():
     try:
-        request_tags = request.args.get("tags")
+        request_tags = request.args.getlist("tags")
         request_title = request.args.get("title")
         request_date = request.args.get("date")
         date = (
@@ -292,6 +294,29 @@ def handle_transcript_get_detail(mindmap_id: str):
             ),
             200,
         )
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/topic/<topic_id>", methods=["GET"])
+def handle_topic_get_detail(topic_id: str):
+    try:
+        topic = get_topic_detail(request, topic_id)
+        return (
+            jsonify({"message": "Topic detail found", "data": topic.model_dump()}),
+            200,
+        )
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
+
+@app.route("/mindmap/<mindmap_id>/questions", methods=["GET"])
+def handle_mindmap_questions(mindmap_id: str):
+    try:
+        questions = get_questions(request, mindmap_id)
+        return jsonify({"message": "Topic questions found", "data": questions}), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
