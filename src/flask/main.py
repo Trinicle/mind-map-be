@@ -316,7 +316,15 @@ def handle_topic_get_detail(topic_id: str):
 def handle_mindmap_questions(mindmap_id: str):
     try:
         questions = get_questions(request, mindmap_id)
-        return jsonify({"message": "Topic questions found", "data": questions}), 200
+        return (
+            jsonify(
+                {
+                    "message": "Topic questions found",
+                    "data": [question.model_dump() for question in questions],
+                }
+            ),
+            200,
+        )
     except Exception as e:
         print(e)
         return jsonify({"message": "An unexpected error occurred"}), 500
